@@ -1,0 +1,176 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null && request.auth.token.email != null;
+    }
+
+    function baseHubEmail() {
+      return request.auth.token.email in [
+        'alekcaballeromusic@gmail.com',
+        'catalina.medina.leal@gmail.com',
+        'emilybg0102@gmail.com',
+        'annitolad@gmail.com',
+        'lorenaduarte.404@gmail.com',
+        'malego2709@gmail.com',
+        'bagutierrezm@gmail.com',
+        'darasaxcifuentes@gmail.com'
+      ];
+    }
+
+    function hubUserPath() {
+      return /databases/$(database)/documents/hubUsers/$(request.auth.token.email);
+    }
+    function hubManagedEnabled() {
+      return exists(hubUserPath()) && get(hubUserPath()).data.enabled == true;
+    }
+    function hubManagedDisabled() {
+      return exists(hubUserPath()) && get(hubUserPath()).data.enabled == false;
+    }
+
+    function isTeacherHubUser() {
+      return signedIn()
+        && (
+          (baseHubEmail() && !hubManagedDisabled())
+          || hubManagedEnabled()
+        );
+    }
+
+    function isAdminReader() {
+      return signedIn()
+        && request.auth.token.email in [
+          'alekcaballeromusic@gmail.com',
+          'catalina.medina.leal@gmail.com'
+        ];
+    }
+
+    function writesOwnTeacherRecord() {
+      return isTeacherHubUser()
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.role == 'docente'
+        && request.resource.data.action in ['inicio_clase', 'fin_jornada']
+        && request.resource.data.modalidad in ['sede', 'hogar', 'virtual', 'jornada']
+        && request.resource.data.source in ['qr_sede', 'manual_hogar', 'manual_virtual', 'manual_fin'];
+    }
+
+    function readsOwnRecord() {
+      return isTeacherHubUser()
+        && resource.data.email == request.auth.token.email;
+    }
+
+    function writesOwnTeacherShiftSession(sessionId) {
+      return isTeacherHubUser()
+        && sessionId == request.auth.uid
+        && request.resource.data.email == request.auth.token.email;
+    }
+
+    match /teacherClassStartRecords/{recordId} {
+      allow create: if writesOwnTeacherRecord();
+      allow read: if readsOwnRecord() || isAdminReader();
+      allow update, delete: if false;
+    }
+
+    match /teacherOpenShiftSessions/{sessionId} {
+      allow get: if (isTeacherHubUser() && sessionId == request.auth.uid)
+        || isAdminReader();
+      allow list: if isAdminReader();
+      allow create, update: if writesOwnTeacherShiftSession(sessionId);
+      allow delete: if false;
+    }
+
+    match /teacherSchedules/{email} {
+      allow read, write: if isAdminReader();
+    }
+
+    match /teacherScheduleOverrides/{overrideId} {
+      allow read, write: if isAdminReader();
+    }
+
+    /* ====================================================================
+       MÓDULO BITÁCORA ACADÉMICA (Trabajo por objetivos)
+    ==================================================================== */
+    function academicReadOwn() {
+      return isTeacherHubUser()
+        && resource.data.teacherEmail == request.auth.token.email;
+    }
+    function academicWriteOwn() {
+      return isTeacherHubUser()
+        && request.resource.data.teacherEmail == request.auth.token.email
+        && (resource == null || resource.data.teacherEmail == request.auth.token.email);
+    }
+    function academicDeleteOwn() {
+      return isTeacherHubUser()
+        && resource.data.teacherEmail == request.auth.token.email;
+    }
+
+    match /academicObjectives/{docId} {
+      allow read: if isAdminReader() || academicReadOwn();
+      allow create, update: if isAdminReader() || academicWriteOwn();
+      allow delete: if isAdminReader() || academicDeleteOwn();
+    }
+    match /academicTaskBudgets/{docId} {
+      allow read: if isAdminReader() || academicReadOwn();
+      allow create, update: if isAdminReader() || academicWriteOwn();
+      allow delete: if isAdminReader() || academicDeleteOwn();
+    }
+    match /academicTaskHourLogs/{docId} {
+      allow read: if isAdminReader() || academicReadOwn();
+      allow create, update: if isAdminReader() || academicWriteOwn();
+      allow delete: if isAdminReader() || academicDeleteOwn();
+    }
+
+    match /hubUsers/{userEmail} {
+      allow get: if isAdminReader() || (signedIn() && userEmail == request.auth.token.email);
+      allow list: if isAdminReader();
+      allow create, update, delete: if isAdminReader();
+    }
+
+    /* ====================================================================
+       MÓDULO RESERVAS WIX
+       Las reservas las escribe únicamente la Cloud Function con Admin SDK.
+       Los docentes solo leen sus reservas por staffEmail.
+       Admin puede leer todo.
+    ==================================================================== */
+
+    function readsOwnWixBooking() {
+      return isTeacherHubUser()
+        && resource.data.staffEmail == request.auth.token.email;
+    }
+
+    match /calendarioWix/{bookingId} {
+      allow read: if isAdminReader() || readsOwnWixBooking();
+      allow create, update, delete: if isAdminReader();
+    }
+
+    match /calendarioWixSyncLogs/{logId} {
+      allow read: if isAdminReader();
+      allow create, update, delete: if false;
+    }
+
+    match /wixStaffMap/{staffKey} {
+      allow read, write: if isAdminReader();
+    }
+
+    match /roomAssignments/{assignmentId} {
+      allow read: if isTeacherHubUser() || isAdminReader();
+      allow create, update, delete: if isAdminReader();
+    }
+
+    match /wixStaffUnmatched/{staffKey} {
+      allow read, write: if isAdminReader();
+    }
+
+    /* Última visita al calendario por usuario (para el aviso de novedades).
+       Cada quien lee y escribe solo su propio documento (id = su email). */
+    match /calendarLastSeen/{userEmail} {
+      allow read: if isAdminReader() || (signedIn() && userEmail == request.auth.token.email);
+      allow create, update: if signedIn() && userEmail == request.auth.token.email;
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

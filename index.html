@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Calendario de clases - Musicala</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/locales/es.global.min.js"></script>
+  <link rel="stylesheet" href="css/reservas-calendar.css" />
+
+  <style>
+    :root {
+      --bach: #220a63;
+      --mozart: #0c41c4;
+      --beethoven: #680dbf;
+      --vivaldi: #5729ff;
+      --brahms: #ce0071;
+      --haydn: #e6e8e8;
+      --debussy: #f9f9f9;
+      --wagner: #0c0a1e;
+      --surface: #ffffff;
+      --muted: #6b7280;
+      --blue: #1769ff;
+      --line: #e3e8f4;
+      --shadow-sm: 0 1px 2px rgba(12, 10, 30, 0.06);
+      --shadow-md: 0 8px 24px rgba(34, 10, 99, 0.10);
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+      margin: 0;
+      color: var(--wagner);
+      background: linear-gradient(180deg, #f7f8fd 0%, #fff 240px);
+      font-family: "Roboto", Arial, Helvetica, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .app {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      background: var(--surface);
+    }
+
+    .sidebar {
+      border-right: 1px solid var(--line);
+      background: linear-gradient(180deg, #fbfcff 0%, #fff 60%);
+      padding: 22px 20px 24px;
+      overflow-y: auto;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 26px;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 19px;
+      font-weight: 900;
+      letter-spacing: -0.01em;
+      background: linear-gradient(100deg, var(--bach), var(--vivaldi) 70%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .icon-button {
+      width: 38px;
+      height: 38px;
+      display: inline-grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      background: #fff;
+      color: var(--vivaldi);
+      font: inherit;
+      font-size: 16px;
+      cursor: pointer;
+      box-shadow: var(--shadow-sm);
+      transition: background 0.18s var(--ease), border-color 0.18s var(--ease),
+        transform 0.18s var(--ease), box-shadow 0.18s var(--ease);
+    }
+
+    .icon-button:hover {
+      background: #f4f2ff;
+      border-color: #cdc4ff;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(87, 41, 255, 0.14);
+    }
+
+    .icon-button:active {
+      transform: translateY(0);
+    }
+
+    .icon-button:focus-visible,
+    .today-button:focus-visible,
+    .primary-button:focus-visible {
+      outline: 2px solid var(--vivaldi);
+      outline-offset: 2px;
+    }
+
+    .mini-month {
+      margin-bottom: 28px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #fff;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .mini-month__top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .mini-month__title {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .mini-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 6px;
+      text-align: center;
+      font-size: 14px;
+    }
+
+    .mini-grid span,
+    .mini-grid button {
+      min-height: 26px;
+      display: grid;
+      place-items: center;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      transition: background 0.15s var(--ease);
+    }
+
+    .mini-grid button:not(.mini-grid__today):hover {
+      background: #eef1ff;
+      cursor: pointer;
+    }
+
+    .mini-grid__head {
+      color: #010b2b;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .mini-grid__muted {
+      color: #a8b0c3;
+    }
+
+    .mini-grid__today {
+      background: linear-gradient(135deg, var(--vivaldi), var(--mozart)) !important;
+      color: #fff;
+      font-weight: 700;
+      box-shadow: 0 3px 10px rgba(87, 41, 255, 0.35);
+    }
+
+    .activity h2 {
+      margin: 0 0 16px;
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .activity-block {
+      border-top: 1px solid var(--line);
+      padding: 14px 0;
+    }
+
+    .activity-summary:hover {
+      color: var(--vivaldi);
+      cursor: pointer;
+    }
+
+    .activity-block:first-of-type {
+      border-top: none;
+      padding-top: 0;
+    }
+
+    .activity-summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: #00113b;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .next-class {
+      margin-top: 14px;
+      padding: 12px 14px;
+      border: 1px solid #e2dcff;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #f6f4ff, #eef4ff);
+      color: #00113b;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .next-class strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .main {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      min-height: 84px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.86);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    .topbar__left,
+    .topbar__right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .today-button,
+    .select-like,
+    .primary-button {
+      height: 42px;
+      border-radius: 22px;
+      border: 1px solid #ded6ff;
+      background: #fff;
+      color: var(--vivaldi);
+      padding: 0 24px;
+      font: inherit;
+      font-weight: 600;
+      transition: background 0.18s var(--ease), border-color 0.18s var(--ease),
+        box-shadow 0.18s var(--ease), transform 0.18s var(--ease);
+    }
+
+    .today-button {
+      cursor: pointer;
+    }
+
+    .today-button:hover {
+      background: #f4f2ff;
+      border-color: #c6b8ff;
+      box-shadow: 0 4px 12px rgba(87, 41, 255, 0.14);
+    }
+
+    .primary-button {
+      border-color: transparent;
+      background: linear-gradient(120deg, var(--vivaldi), var(--mozart));
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 6px 18px rgba(87, 41, 255, 0.28);
+    }
+
+    .primary-button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 24px rgba(87, 41, 255, 0.36);
+    }
+
+    .primary-button:active {
+      transform: translateY(0);
+    }
+
+    .period-title {
+      min-width: 190px;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: #010b2b;
+    }
+
+    .select-like {
+      min-width: 170px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #010b2b;
+      border-color: var(--line);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .user-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      box-shadow: var(--shadow-sm);
+      color: var(--vivaldi);
+    }
+
+    .user-box input {
+      width: clamp(120px, 15vw, 230px);
+      border: 0;
+      outline: 0;
+      font: inherit;
+      color: #010b2b;
+    }
+
+    .user-box input:read-only {
+      color: #475569;
+    }
+
+    .calendar-shell {
+      min-height: 0;
+      flex: 1;
+      overflow: auto;
+    }
+
+    .app.is-rooms-view {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .app.is-rooms-view .sidebar {
+      display: none;
+    }
+
+    #modulo-reservas {
+      min-width: 920px;
+      padding: 0;
+    }
+
+    .setup {
+      margin: 32px auto;
+      max-width: 640px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 28px;
+      background: #fff;
+      box-shadow: var(--shadow-md);
+      animation: setup-in 0.35s var(--ease);
+    }
+
+    @keyframes setup-in {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .setup { animation: none; }
+      .icon-button, .primary-button, .today-button { transition: none; }
+    }
+
+    .setup h2 {
+      margin: 0 0 8px;
+      color: var(--bach);
+      font-size: 22px;
+    }
+
+    .setup p {
+      margin: 0 0 14px;
+      color: #475569;
+      line-height: 1.55;
+    }
+
+    .setup code {
+      background: #f1f5f9;
+      border-radius: 5px;
+      padding: 2px 5px;
+    }
+
+    .setup ul {
+      margin: 0;
+      padding-left: 20px;
+      color: #334155;
+      line-height: 1.65;
+    }
+
+    @media (max-width: 980px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        display: none;
+      }
+
+      .topbar {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 10px;
+        min-height: 0;
+        padding: 12px 14px calc(12px + env(safe-area-inset-left, 0px));
+      }
+
+      .topbar__left {
+        justify-content: space-between;
+      }
+
+      .topbar__left,
+      .topbar__right {
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .period-title {
+        order: -1;
+        flex: 1 1 100%;
+        min-width: 0;
+        font-size: 17px;
+      }
+
+      .select-like {
+        display: none;
+      }
+
+      .user-box {
+        flex: 1 1 120px;
+        min-width: 0;
+        padding: 4px 12px;
+      }
+
+      .user-box input {
+        width: 100%;
+        min-width: 0;
+        font-size: 16px;
+      }
+
+      .primary-button {
+        flex: 0 0 auto;
+      }
+
+      .today-button {
+        padding: 0 18px;
+      }
+
+      .icon-button,
+      .today-button,
+      .primary-button {
+        min-height: 44px;
+      }
+
+      #modulo-reservas {
+        min-width: 0;
+      }
+
+      .setup {
+        margin: 20px 14px;
+        padding: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" aria-label="Resumen del calendario">
+      <div class="brand">
+        <h1>Calendario</h1>
+        <button class="icon-button" type="button" aria-label="Vista lateral">▣</button>
+      </div>
+
+      <section class="mini-month" aria-label="Mes actual">
+        <div class="mini-month__top">
+          <button class="icon-button" type="button" id="mini-prev" aria-label="Mes anterior">‹</button>
+          <h2 class="mini-month__title" id="mini-title">Julio 2026</h2>
+          <button class="icon-button" type="button" id="mini-next" aria-label="Mes siguiente">›</button>
+        </div>
+        <div class="mini-grid" id="mini-calendar"></div>
+      </section>
+
+      <section class="activity">
+        <h2>Actividad</h2>
+        <div class="activity-block">
+          <div class="activity-summary">
+            <span>Proxima sesion</span>
+            <span>⌃</span>
+          </div>
+          <div class="next-class" id="next-class">
+            <strong>Esperando reservas</strong>
+            Cuando entren datos desde Wix, la siguiente clase aparecera aqui.
+          </div>
+        </div>
+        <div class="activity-block">
+          <div class="activity-summary"><span>Lista de espera de citas</span><span>⌄</span></div>
+        </div>
+        <div class="activity-block">
+          <div class="activity-summary"><span>Solicitudes de reserva</span><span>⌄</span></div>
+        </div>
+        <div class="activity-block">
+          <div class="activity-summary"><span>Listas de espera de clases</span><span>⌄</span></div>
+        </div>
+        <div class="activity-block">
+          <div class="activity-summary"><span>Actividad reciente</span><span>⌄</span></div>
+        </div>
+      </section>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar__left">
+          <button class="today-button" type="button" id="go-today">Hoy</button>
+          <div class="period-title" id="period-title">Calendario de clases</div>
+          <button class="icon-button" type="button" id="prev-range" aria-label="Anterior">‹</button>
+          <button class="icon-button" type="button" id="next-range" aria-label="Siguiente">›</button>
+        </div>
+
+        <div class="topbar__right">
+          <button class="icon-button" type="button" aria-label="Buscar">⌕</button>
+          <div class="select-like">Semanalmente <span>⌄</span></div>
+          <div class="user-box">
+            <span aria-hidden="true">@</span>
+            <input id="user-email" type="email" value="" placeholder="Inicia sesion" readonly aria-label="Correo del usuario" />
+          </div>
+          <button class="primary-button" type="button" id="auth-button">Entrar</button>
+        </div>
+      </header>
+
+      <section class="calendar-shell">
+        <div id="modulo-reservas"></div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+    import {
+      getAuth,
+      GoogleAuthProvider,
+      onAuthStateChanged,
+      signInWithPopup,
+      signOut,
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+    import {
+      collection,
+      getDocs,
+      getFirestore,
+      query,
+      where,
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+    import { initReservasCalendar } from "./js/reservas-calendar.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyC06dLl2Lig3-kD4OVmh4C9LpFW9AeTyOc",
+      authDomain: "musicala-docentes-hub.firebaseapp.com",
+      projectId: "musicala-docentes-hub",
+      storageBucket: "musicala-docentes-hub.firebasestorage.app",
+      messagingSenderId: "936379833270",
+      appId: "1:936379833270:web:512519cf318c919e3abf17",
+    };
+
+    const bitacorasFirebaseConfig = {
+      apiKey: "AIzaSyDQcHQEzGE1DDpD1b_foUTmVo3D9LK_0N0",
+      authDomain: "musicala-estudianteshub.web.app",
+      projectId: "bitacoras-de-clase",
+      storageBucket: "bitacoras-de-clase.firebasestorage.app",
+      messagingSenderId: "1047385643159",
+      appId: "1:1047385643159:web:074d75890a648f6ac5f1d2",
+    };
+
+    const container = document.getElementById("modulo-reservas");
+    const userEmail = document.getElementById("user-email");
+    const authButton = document.getElementById("auth-button");
+    const appShell = document.querySelector(".app");
+    let calendarModule = null;
+    let app = null;
+    let db = null;
+    let auth = null;
+    let bitacorasAuth = null;
+    let bitacorasDb = null;
+
+    function hasFirebaseConfig() {
+      return Object.values(firebaseConfig).every((value) => value && !String(value).includes("REEMPLAZAR"));
+    }
+
+    function showSetupMessage() {
+      container.innerHTML = `
+        <div class="setup">
+          <h2>Falta conectar Firebase</h2>
+          <p>El aplicativo ya esta listo como calendario web. Para ver las clases reales, revisa el objeto <code>firebaseConfig</code> en <code>index.html</code>.</p>
+          <ul>
+            <li>Despues de conectar Firebase, inicia sesion con Google.</li>
+            <li>Las reservas deben existir en Firestore en la coleccion <code>calendarioWix</code>.</li>
+            <li>El campo <code>staffEmail</code> decide que clases ve cada docente.</li>
+          </ul>
+        </div>`;
+    }
+
+    function showLoginMessage() {
+      container.innerHTML = `
+        <div class="setup">
+          <h2>Inicia sesion</h2>
+          <p>Usa el boton <strong>Entrar</strong> para abrir el calendario con tu correo autorizado del Hub.</p>
+        </div>`;
+    }
+
+    function startCalendar(user) {
+      if (!hasFirebaseConfig()) {
+        showSetupMessage();
+        return;
+      }
+
+      if (!user || !user.email) {
+        showLoginMessage();
+        return;
+      }
+
+      if (calendarModule) {
+        calendarModule.destroy();
+      }
+
+      calendarModule = initReservasCalendar({
+        container,
+        db,
+        userEmail: user.email,
+        loadStudentHubData,
+        onDisplayModeChange(mode) {
+          appShell.classList.toggle("is-rooms-view", mode === "rooms");
+        },
+      });
+    }
+
+    function cleanText(value) {
+      return String(value || "").trim();
+    }
+
+    function unique(values) {
+      return [...new Set(values.map(cleanText).filter(Boolean))];
+    }
+
+    function toMillis(value) {
+      if (!value) return 0;
+      if (typeof value.toMillis === "function") return value.toMillis();
+      if (typeof value.toDate === "function") return value.toDate().getTime();
+      const parsed = new Date(value).getTime();
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    async function ensureBitacorasSession() {
+      if (bitacorasAuth.currentUser) return;
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ login_hint: auth.currentUser?.email || "" });
+      await signInWithPopup(bitacorasAuth, provider);
+    }
+
+    async function loadStudentHubData(email) {
+      const normalizedEmail = cleanText(email).toLowerCase();
+      if (!normalizedEmail) throw new Error("Este estudiante no tiene correo vinculado.");
+      await ensureBitacorasSession();
+
+      const studentsRef = collection(bitacorasDb, "students");
+      const candidates = new Map();
+      const searches = [
+        ["email", "=="],
+        ["correo", "=="],
+        ["studentEmail", "=="],
+        ["allEmails", "array-contains"],
+        ["linkedEmails", "array-contains"],
+      ];
+
+      for (const [field, operator] of searches) {
+        const snapshot = await getDocs(query(studentsRef, where(field, operator, normalizedEmail)));
+        snapshot.docs.forEach((item) => candidates.set(item.id, { id: item.id, ...item.data() }));
+      }
+
+      const student = [...candidates.values()].sort((a, b) =>
+        toMillis(b.updatedAt || b.createdAt) - toMillis(a.updatedAt || a.createdAt)
+      )[0];
+      if (!student) return { student: null, bitacoras: [] };
+
+      const aliases = unique([
+        student.id,
+        student.studentId,
+        student.studentKey,
+        student.estudianteId,
+        student.documento,
+      ]);
+      const bitacorasRef = collection(bitacorasDb, "bitacoras");
+      const entries = new Map();
+
+      for (let index = 0; index < aliases.length; index += 10) {
+        const part = aliases.slice(index, index + 10);
+        const snapshot = await getDocs(query(bitacorasRef, where("studentIds", "array-contains-any", part)));
+        snapshot.docs.forEach((item) => entries.set(item.id, { id: item.id, ...item.data() }));
+      }
+
+      if (!entries.size) {
+        for (const alias of aliases) {
+          const snapshot = await getDocs(query(bitacorasRef, where("studentId", "==", alias)));
+          snapshot.docs.forEach((item) => entries.set(item.id, { id: item.id, ...item.data() }));
+        }
+      }
+
+      const bitacoras = [...entries.values()].sort((a, b) =>
+        toMillis(b.fechaClase || b.date || b.createdAt) -
+        toMillis(a.fechaClase || a.date || a.createdAt)
+      );
+      return { student, bitacoras };
+    }
+
+    let miniCalendarDate = new Date();
+
+    function buildMiniCalendar() {
+      const target = new Date(miniCalendarDate.getFullYear(), miniCalendarDate.getMonth(), 1);
+      const grid = document.getElementById("mini-calendar");
+      document.getElementById("mini-title").textContent = target.toLocaleDateString("es-CO", {
+        month: "long",
+        year: "numeric",
+      });
+      const labels = ["dom", "lun", "mar", "mie", "jue", "vie", "sab"];
+      const firstDay = new Date(target.getFullYear(), target.getMonth(), 1).getDay();
+      const lastDate = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+      const prevLastDate = new Date(target.getFullYear(), target.getMonth(), 0).getDate();
+      const cells = [];
+
+      labels.forEach((label) => cells.push(`<span class="mini-grid__head">${label}</span>`));
+
+      for (let i = firstDay - 1; i >= 0; i--) {
+        cells.push(`<span class="mini-grid__muted">${prevLastDate - i}</span>`);
+      }
+
+      for (let day = 1; day <= lastDate; day++) {
+        const date = new Date(target.getFullYear(), target.getMonth(), day);
+        const isToday = date.toDateString() === new Date().toDateString();
+        cells.push(`<button type="button" class="${isToday ? "mini-grid__today" : ""}" data-mini-date="${date.toISOString()}">${day}</button>`);
+      }
+
+      while ((cells.length - 7) % 7 !== 0) {
+        const next = (cells.length - 7 - firstDay - lastDate) + 1;
+        cells.push(`<span class="mini-grid__muted">${next}</span>`);
+      }
+
+      grid.innerHTML = cells.join("");
+    }
+
+    document.getElementById("mini-prev").addEventListener("click", () => {
+      miniCalendarDate.setMonth(miniCalendarDate.getMonth() - 1);
+      buildMiniCalendar();
+    });
+    document.getElementById("mini-next").addEventListener("click", () => {
+      miniCalendarDate.setMonth(miniCalendarDate.getMonth() + 1);
+      buildMiniCalendar();
+    });
+    document.getElementById("mini-calendar").addEventListener("click", (event) => {
+      const day = event.target.closest("[data-mini-date]");
+      if (!day || !calendarModule) return;
+      calendarModule.goToDate(day.dataset.miniDate);
+    });
+
+    function initFirebase() {
+      if (!hasFirebaseConfig()) {
+        showSetupMessage();
+        return;
+      }
+
+      app = initializeApp(firebaseConfig);
+      db = getFirestore(app);
+      auth = getAuth(app);
+      const bitacorasApp = initializeApp(bitacorasFirebaseConfig, "bitacoras");
+      bitacorasDb = getFirestore(bitacorasApp);
+      bitacorasAuth = getAuth(bitacorasApp);
+
+      onAuthStateChanged(auth, (user) => {
+        if (user) {
+          userEmail.value = user.email || "";
+          authButton.textContent = "Salir";
+          startCalendar(user);
+        } else {
+          userEmail.value = "";
+          authButton.textContent = "Entrar";
+          if (calendarModule) {
+            calendarModule.destroy();
+            calendarModule = null;
+          }
+          showLoginMessage();
+        }
+      });
+    }
+
+    authButton.addEventListener("click", async () => {
+      if (!auth) return;
+      if (auth.currentUser) {
+        await signOut(auth);
+        return;
+      }
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    });
+    document.getElementById("go-today").addEventListener("click", () => {
+      const today = document.querySelector(".fc-today-button");
+      if (today) today.click();
+    });
+    document.getElementById("prev-range").addEventListener("click", () => {
+      const prev = document.querySelector(".fc-prev-button");
+      if (prev) prev.click();
+    });
+    document.getElementById("next-range").addEventListener("click", () => {
+      const next = document.querySelector(".fc-next-button");
+      if (next) next.click();
+    });
+
+    buildMiniCalendar();
+    initFirebase();
+  </script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+# Dependencias
+node_modules/
+functions/node_modules/
+
+# Secretos y variables de entorno (NO publicar)
+.env
+.env.*
+functions/.env
+functions/.env.*
+*.local
+.wix-webhook-secret.local
+
+# Cache de Firebase
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+firestore-debug.log
+ui-debug.log
+
+# Config local de Claude Code
+.claude/settings.local.json
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Temporales
+services.json
+*.log

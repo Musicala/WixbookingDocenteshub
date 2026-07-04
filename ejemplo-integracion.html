@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<!-- ARCHIVO REEMPLAZADO: versión con firebaseConfig real del Hub -->
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prueba aislada · Reservas Wix Calendario</title>
+
+  <!-- Tipografía Musicala -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet" />
+
+  <!-- FullCalendar 6 (el bundle global incluye su CSS) -->
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/locales/es.global.min.js"></script>
+
+  <!-- CSS del módulo -->
+  <link rel="stylesheet" href="css/reservas-calendar.css" />
+
+  <style>
+    body {
+      margin: 0;
+      padding: 1.5rem;
+      background: #f9f9f9;
+      font-family: "Roboto", system-ui, sans-serif;
+    }
+    .demo-bar {
+      max-width: 1100px;
+      margin: 0 auto 1rem;
+      display: flex;
+      gap: 0.6rem;
+      align-items: center;
+      flex-wrap: wrap;
+      font-size: 0.85rem;
+    }
+    .demo-bar input {
+      font: inherit;
+      padding: 0.4rem 0.6rem;
+      border: 1px solid #e6e8e8;
+      border-radius: 10px;
+      min-width: 18rem;
+    }
+    .demo-bar button {
+      font: inherit;
+      font-weight: 600;
+      padding: 0.4rem 0.9rem;
+      border: none;
+      border-radius: 10px;
+      background: #220a63;
+      color: #fff;
+      cursor: pointer;
+    }
+    #modulo-reservas { max-width: 1100px; margin: 0 auto; }
+  </style>
+</head>
+<body>
+  <!--
+    PÁGINA DE PRUEBA AISLADA — no forma parte del Hub.
+    Sirve para validar el módulo con el Firestore real antes de integrarlo.
+    1) Completar firebaseConfig abajo con el config del proyecto del Hub.
+    2) Servir con Live Server o `npx serve` (los módulos ES no funcionan con file://).
+    3) Probar con un email docente y con un email admin.
+  -->
+  <div class="demo-bar">
+    <label>Simular usuario:&nbsp;<input id="demo-email" type="email" value="alekcaballeromusic@gmail.com" /></label>
+    <button id="demo-load">Cargar calendario</button>
+    <button id="demo-destroy">Destruir módulo</button>
+  </div>
+
+  <div id="modulo-reservas"></div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { initReservasCalendar } from "./js/reservas-calendar.js";
+
+    // ⚠️ Reemplazar con el config real del proyecto Firebase del Hub
+    const firebaseConfig = {
+      apiKey: "REEMPLAZAR",
+      authDomain: "REEMPLAZAR.firebaseapp.com",
+      projectId: "REEMPLAZAR",
+      storageBucket: "REEMPLAZAR.appspot.com",
+      messagingSenderId: "REEMPLAZAR",
+      appId: "REEMPLAZAR",
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    let modulo = null;
+
+    document.getElementById("demo-load").addEventListener("click", () => {
+      if (modulo) modulo.destroy();
+      modulo = initReservasCalendar({
+        container: document.getElementById("modulo-reservas"),
+        db,
+        userEmail: document.getElementById("demo-email").value,
+      });
+      console.log("Módulo cargado. ¿Es admin?", modulo.isAdmin);
+    });
+
+    document.getElementById("demo-destroy").addEventListener("click", () => {
+      if (modulo) {
+        modulo.destroy();
+        modulo = null;
+        console.log("Módulo destruido: listener cancelado, DOM limpio.");
+      }
+    });
+  </script>
+</body>
+</html>

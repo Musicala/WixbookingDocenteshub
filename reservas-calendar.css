@@ -1,0 +1,1879 @@
+/* ============================================================
+   Reservas Wix · Calendario — estilos del módulo (mcal)
+   Paleta Musicala con fallback a las variables del manual:
+   Bach #220A63 · Mozart #0C41C4 · Beethoven #680DBF
+   Vivaldi #5729FF · Brahms #CE0071 · Haydn #E6E8E8 · Debussy #F9F9F9
+   ============================================================ */
+
+.mcal {
+  --mcal-ink: var(--wagner, #0c0a1e);
+  --mcal-primary: var(--mozart, #0c41c4);
+  --mcal-deep: var(--bach, #220a63);
+  --mcal-violet: var(--beethoven, #680dbf);
+  --mcal-accent: var(--vivaldi, #5729ff);
+  --mcal-magenta: var(--brahms, #ce0071);
+  --mcal-line: var(--haydn, #e6e8e8);
+  --mcal-bg: var(--debussy, #f9f9f9);
+
+  font-family: "Roboto", system-ui, sans-serif;
+  color: var(--mcal-ink);
+  background: #fff;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
+
+/* ----------------------- Cabecera --------------------------- */
+
+.mcal__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--mcal-line);
+}
+
+.mcal__title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--mcal-deep);
+}
+
+.mcal__subtitle {
+  margin: 0.15rem 0 0;
+  font-size: 0.85rem;
+  color: #5a5a6e;
+}
+
+/* --------------------- Filtros (admin) ---------------------- */
+
+.mcal__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.mcal__filter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b6b80;
+}
+
+.mcal__filter select {
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--mcal-ink);
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--mcal-line);
+  border-radius: 10px;
+  background: var(--mcal-bg);
+  min-width: 9.5rem;
+  cursor: pointer;
+}
+
+.mcal__filter select:focus-visible {
+  outline: 2px solid var(--mcal-accent);
+  outline-offset: 1px;
+}
+
+.mcal__upload {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b6b80;
+}
+
+.mcal__upload button {
+  min-height: 2.15rem;
+  border: 1px solid var(--mcal-primary);
+  border-radius: 10px;
+  background: var(--mcal-primary);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  padding: 0.4rem 0.8rem;
+}
+
+.mcal__upload-status {
+  flex-basis: 100%;
+  margin: 0;
+  color: #5a5a6e;
+  font-size: 0.78rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.mcal__upload-status--error {
+  color: #b42318;
+}
+
+.mcal__settings-button {
+  align-self: end;
+  min-height: 2.15rem;
+  border: 1px solid var(--mcal-line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--mcal-deep);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0.4rem 0.8rem;
+}
+
+/* --------------------- Ajustes docentes --------------------- */
+
+.mcal-settings {
+  position: fixed;
+  inset: 0;
+  z-index: 1190;
+}
+
+.mcal-settings[hidden] {
+  display: none;
+}
+
+.mcal-settings__overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(12, 10, 30, 0.38);
+}
+
+.mcal-settings__panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: min(680px, 100%);
+  height: 100%;
+  background: #fff;
+  box-shadow: -18px 0 48px rgba(12, 10, 30, 0.18);
+  display: flex;
+  flex-direction: column;
+}
+
+.mcal-settings__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--mcal-line);
+}
+
+.mcal-settings__header h3 {
+  margin: 0;
+  color: var(--mcal-deep);
+  font-size: 1.1rem;
+}
+
+.mcal-settings__header p {
+  margin: 0.25rem 0 0;
+  color: #6b6b80;
+  font-size: 0.85rem;
+}
+
+.mcal-settings__body {
+  overflow: auto;
+  padding: 1rem 1.25rem 1.4rem;
+}
+
+.mcal-settings__manual {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 0.7rem;
+  align-items: end;
+  border-bottom: 1px solid var(--mcal-line);
+  padding-bottom: 1rem;
+}
+
+.mcal-settings__manual button {
+  justify-self: start;
+}
+
+.mcal-settings__user {
+  border-bottom: 1px solid var(--mcal-line);
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+}
+
+.mcal-settings__user h4 {
+  margin: 0 0 0.65rem;
+  color: var(--mcal-deep);
+  font-size: 0.95rem;
+}
+
+.mcal-settings__user-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem;
+  align-items: end;
+}
+
+.mcal-settings__user-grid button {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+.mcal-settings__manual label,
+.mcal-settings__user label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  color: #6b6b80;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.mcal-settings input,
+.mcal-settings select {
+  min-height: 2.2rem;
+  border: 1px solid var(--mcal-line);
+  border-radius: 8px;
+  font: inherit;
+  padding: 0.35rem 0.55rem;
+}
+
+.mcal-settings button {
+  min-height: 2.2rem;
+  border: 1px solid var(--mcal-primary);
+  border-radius: 8px;
+  background: var(--mcal-primary);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 0.35rem 0.7rem;
+}
+
+.mcal-settings__status,
+.mcal-settings__empty {
+  color: #5a5a6e;
+  font-size: 0.85rem;
+}
+
+.mcal-settings__status--error {
+  color: #b42318;
+}
+
+.mcal-settings__section-title {
+  margin: 1rem 0 0.55rem;
+  color: var(--mcal-deep);
+  font-size: 0.9rem;
+}
+
+.mcal-settings__list {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+
+.mcal-settings__item {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(220px, 1.4fr) auto;
+  gap: 0.55rem;
+  align-items: center;
+  border: 1px solid var(--mcal-line);
+  border-radius: 8px;
+  padding: 0.7rem;
+}
+
+.mcal-settings__item > button[data-staff-name] {
+  display: none;
+}
+
+.mcal-settings__item > select {
+  min-width: 0;
+  width: 100%;
+}
+
+.mcal-settings__item > button[data-inline-save] {
+  white-space: nowrap;
+}
+
+.mcal-settings__item strong,
+.mcal-settings__item span {
+  display: block;
+}
+
+.mcal-settings__item span {
+  margin-top: 0.1rem;
+  color: #6b6b80;
+  font-size: 0.78rem;
+}
+
+@media (max-width: 760px) {
+  .mcal-settings__manual,
+  .mcal-settings__user-grid,
+  .mcal-settings__item {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ------------------------- Leyenda -------------------------- */
+
+.mcal__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.7rem 1rem;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--mcal-line);
+}
+
+.mcal__chip {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.mcal__chip--confirmed   { background: #eef1ff; color: var(--mcal-primary); border-color: #d6ddfb; }
+.mcal__chip--pending     { background: #fff7e8; color: #8a6100; border-color: #f3e2b8; }
+.mcal__chip--rescheduled { background: #f4edff; color: var(--mcal-violet); border-color: #e3d4fb; }
+.mcal__chip--updated     { background: #eafaf3; color: #0d7a55; border-color: #cdeede; }
+.mcal__chip--blocked     { background: #efe9ff; color: var(--mcal-violet); border-color: #d8c9ff; }
+.mcal__chip--cancelled   { background: #f3f3f5; color: #8a8a98; border-color: var(--mcal-line); text-decoration: line-through; }
+.mcal__chip--unknown     { background: #f3f3f5; color: #6b6b80; border-color: var(--mcal-line); }
+
+/* ---------------- FullCalendar: tema base ------------------- */
+
+.mcal .fc {
+  --fc-border-color: var(--mcal-line);
+  --fc-page-bg-color: #fff;
+  --fc-today-bg-color: #f4f1ff;
+  --fc-button-bg-color: #fff;
+  --fc-button-border-color: var(--mcal-line);
+  --fc-button-text-color: var(--mcal-ink);
+  --fc-button-hover-bg-color: var(--mcal-bg);
+  --fc-button-hover-border-color: #cfd2e4;
+  --fc-button-active-bg-color: var(--mcal-deep);
+  --fc-button-active-border-color: var(--mcal-deep);
+  --fc-list-event-hover-bg-color: var(--mcal-bg);
+  font-size: 0.86rem;
+  min-height: calc(100vh - 176px);
+}
+
+.mcal__calendar {
+  min-height: calc(100vh - 176px);
+}
+
+.mcal .fc .fc-toolbar-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--mcal-deep);
+  text-transform: capitalize;
+}
+
+.mcal .fc .fc-button {
+  border-radius: 10px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  box-shadow: none;
+  text-transform: capitalize;
+}
+
+.mcal .fc .fc-button:focus-visible {
+  outline: 2px solid var(--mcal-accent);
+  outline-offset: 1px;
+}
+
+.mcal .fc .fc-button-primary:not(:disabled).fc-button-active {
+  color: #fff;
+}
+
+.mcal .fc .fc-col-header-cell-cushion {
+  color: var(--mcal-deep);
+  font-weight: 600;
+  text-transform: capitalize;
+  padding: 0.45rem 0.25rem;
+}
+
+.mcal .fc .fc-timegrid-slot-label-cushion,
+.mcal .fc .fc-list-day-text,
+.mcal .fc .fc-list-day-side-text {
+  color: #6b6b80;
+  font-size: 0.75rem;
+}
+
+.mcal .fc .fc-daygrid-day-number {
+  color: var(--mcal-ink);
+  font-size: 0.8rem;
+  padding: 0.3rem 0.45rem;
+}
+
+/* ----------------- Eventos: estilo común -------------------- */
+
+.mcal .mcal-event {
+  border-radius: 5px;
+  border-width: 1px;
+  border-left-width: 4px;
+  font-size: 0.78rem;
+  line-height: 1.25;
+  cursor: pointer;
+  background: #fff;
+  color: #132038;
+}
+
+/* Fondo blanco: el color solo se ve en la rayita izquierda (borde
+   izquierdo = color de acento por evento) y en el puntito del contenido.
+   Los otros tres bordes quedan en gris suave para no saturar. */
+.mcal .mcal-event {
+  border-top-color: var(--mcal-line) !important;
+  border-right-color: var(--mcal-line) !important;
+  border-bottom-color: var(--mcal-line) !important;
+}
+
+.mcal-ev__top {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mcal-ev__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.mcal-ev {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px 5px;
+  overflow: hidden;
+}
+
+.mcal-ev__time {
+  font-weight: 700;
+  font-size: 0.68rem;
+  opacity: 0.85;
+}
+
+.mcal-ev__main {
+  font-weight: 700;
+  white-space: normal;
+  overflow: hidden;
+  text-overflow: clip;
+}
+
+.mcal-ev__meta {
+  font-size: 0.65rem;
+  opacity: 0.7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mcal-ev__tag {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* ------------------ Eventos por estado ---------------------- */
+/* Todos con fondo blanco y texto oscuro. El color de instrumento /
+   profesor se ve solo en la rayita izquierda y el puntito. El estado
+   se distingue por detalles: borde punteado (pendiente), etiqueta
+   (bloqueado), o gris tachado (cancelada). */
+
+.mcal .mcal-event--confirmed,
+.mcal .mcal-event--rescheduled,
+.mcal .mcal-event--updated,
+.mcal .mcal-event--blocked {
+  background: #fff;
+  color: #132038;
+}
+
+.mcal .mcal-event--pending {
+  background: #fff;
+  color: #132038;
+  border-style: dashed;
+}
+
+.mcal .mcal-event--blocked .mcal-ev__main {
+  color: #4a5578;
+  font-weight: 500;
+}
+
+.mcal .mcal-event--cancelled {
+  background: #f3f3f5;
+  border-color: var(--mcal-line);
+  color: #8a8a98;
+  opacity: 0.7;
+}
+
+.mcal .mcal-event--cancelled .mcal-ev__main {
+  text-decoration: line-through;
+}
+
+.mcal .mcal-event--unknown {
+  background: var(--mcal-bg);
+  border-color: var(--mcal-line);
+  color: var(--mcal-ink);
+}
+
+/* Punto de color en vista Lista */
+.mcal .fc-list-event .fc-list-event-dot { border-color: var(--mcal-primary); }
+.mcal .fc-list-event.mcal-event--cancelled td { color: #8a8a98; text-decoration: line-through; }
+.mcal .fc-list-event.mcal-event--pending .fc-list-event-dot { border-color: #d9a72c; }
+.mcal .fc-list-event.mcal-event--rescheduled .fc-list-event-dot { border-color: var(--mcal-violet); }
+.mcal .fc-list-event.mcal-event--updated .fc-list-event-dot { border-color: #15966b; }
+.mcal .fc-list-event.mcal-event--blocked .fc-list-event-dot { border-color: var(--mcal-violet); }
+.mcal .fc-list-event.mcal-event--cancelled .fc-list-event-dot { border-color: #b6b6c2; }
+
+/* ----------------------- Mensaje vacío ---------------------- */
+
+.mcal__empty {
+  margin: 1rem 0 0;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #6b6b80;
+  background: var(--mcal-bg);
+  border: 1px dashed var(--mcal-line);
+  border-radius: 12px;
+  padding: 0.9rem;
+}
+
+/* ------------------------ Modal ----------------------------- */
+
+.mcal-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.mcal-modal[hidden] { display: none; }
+
+.mcal-modal__overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(12, 10, 30, 0.45);
+}
+
+.mcal-modal__panel {
+  position: relative;
+  width: min(540px, 100%);
+  max-height: min(85vh, 720px);
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 24px 60px rgba(12, 10, 30, 0.25);
+  animation: mcal-pop 0.18s ease-out;
+}
+
+@keyframes mcal-pop {
+  from { transform: translateY(8px); opacity: 0; }
+  to   { transform: translateY(0);   opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mcal-modal__panel { animation: none; }
+}
+
+.mcal__modebar {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0;
+}
+
+.mcal__mode-button {
+  min-height: 2.45rem;
+  border: 1px solid #cfe0ff;
+  background: #fff;
+  color: #12004f;
+  border-radius: 12px;
+  padding: 0.6rem 1rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(12, 10, 30, 0.05);
+}
+
+.mcal__mode-button.is-active {
+  background: #1f62ff;
+  border-color: #1f62ff;
+  color: #fff;
+  box-shadow: 0 7px 16px rgba(31, 98, 255, 0.18);
+}
+
+.mcal-rooms {
+  padding: 1rem;
+  border-top: 1px solid #e5e7f2;
+  background: #f6f7fb;
+}
+
+.mcal__calendar[hidden],
+.mcal-rooms[hidden] {
+  display: none !important;
+}
+
+.mcal-rooms__head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.mcal-rooms__head h3 {
+  margin: 0 0 0.2rem;
+  color: #12004f;
+}
+
+.mcal-rooms__head p,
+.mcal-rooms__head span {
+  margin: 0;
+  color: #6f7288;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.mcal-rooms__nav {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.mcal-rooms__nav button,
+.mcal-rooms__nav a {
+  min-width: 2.35rem;
+  min-height: 2.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #dfe5f4;
+  border-radius: 10px;
+  background: #fff;
+  color: #12004f;
+  padding: 0.45rem 0.75rem;
+  font-weight: 900;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.mcal-rooms__nav strong {
+  color: #12004f;
+  font-size: 1rem;
+  text-transform: capitalize;
+}
+
+.mcal-rooms__notice {
+  flex-basis: 100%;
+}
+
+.mcal-rooms-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 32%) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.mcal-rooms-sidebar,
+.mcal-rooms-main,
+.mcal-live-column,
+.mcal-room-column,
+.mcal-teacher-group,
+.mcal-kpi {
+  border: 1px solid #e2e6f2;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.mcal-rooms-sidebar {
+  position: sticky;
+  top: 0.75rem;
+  max-height: calc(100vh - 8rem);
+  overflow: auto;
+}
+
+.mcal-rooms-sidebar__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  align-items: center;
+  padding: 0.85rem;
+  border-bottom: 1px solid #edf0f7;
+  color: #12004f;
+}
+
+.mcal-rooms-sidebar__head span {
+  min-width: 2rem;
+  min-height: 2rem;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #1f62ff;
+  font-weight: 900;
+}
+
+.mcal-rooms-sidebar__list,
+.mcal-rooms-search-results {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.75rem;
+}
+
+.mcal-rooms-sidebar__list p,
+.mcal-rooms-search-results p,
+.mcal-live-column p,
+.mcal-room-column p,
+.mcal-teacher-groups > p {
+  margin: 0;
+  color: #7c829a;
+  font-size: 0.9rem;
+}
+
+.mcal-rooms-main {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.mcal-rooms-tabs {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0.55rem;
+  border-bottom: 1px solid #edf0f7;
+  overflow-x: auto;
+}
+
+.mcal-rooms-tab {
+  min-height: 2.25rem;
+  border: 1px solid #dfe5f4;
+  border-radius: 8px;
+  background: #fff;
+  color: #12004f;
+  padding: 0.45rem 0.75rem;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.mcal-rooms-tab.is-active {
+  background: #1f62ff;
+  border-color: #1f62ff;
+  color: #fff;
+}
+
+.mcal-rooms-panel {
+  padding: 0.75rem;
+  min-height: 420px;
+  overflow: auto;
+}
+
+.mcal-room-list-item {
+  width: 100%;
+  display: grid;
+  gap: 0.18rem;
+  border: 1px solid #e2e6f2;
+  border-left: 5px solid var(--mcal-event-accent, #5d2fd1);
+  border-radius: 8px;
+  background: #fff;
+  color: #12004f;
+  padding: 0.65rem 0.7rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mcal-room-list-item:hover {
+  border-color: #aac4ff;
+  background: #f7faff;
+}
+
+.mcal-room-list-item[draggable="true"] {
+  cursor: grab;
+}
+
+.mcal-room-list-item.is-dragging {
+  opacity: 0.55;
+  cursor: grabbing;
+}
+
+.mcal-academic-task {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.mcal-academic-task label {
+  display: grid;
+  gap: 0.35rem;
+  color: #12004f;
+  font-weight: 800;
+}
+
+.mcal-academic-task input,
+.mcal-academic-task select {
+  width: 100%;
+  min-height: 2.75rem;
+  border: 1px solid #dfe5f4;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+}
+
+.mcal-academic-task__status,
+.mcal-academic-task button {
+  grid-column: 1 / -1;
+}
+
+.mcal-academic-task__status {
+  min-height: 1.25rem;
+  margin: 0;
+  color: #7a4d00;
+}
+
+.mcal-academic-log-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.5rem;
+  border-radius: 8px;
+  background: #5729ff;
+  color: #fff;
+  padding: 0.55rem 0.85rem;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.mcal-academic-task-delete {
+  min-height: 2.5rem;
+  border: 1px solid #dc2626;
+  border-radius: 8px;
+  background: #fff;
+  color: #b91c1c;
+  padding: 0.55rem 0.85rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.mcal-academic-task-delete:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+@media (max-width: 640px) {
+  .mcal-academic-task {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Aviso de novedades a docentes */
+.mcal-updates {
+  margin: 0 0 0.85rem;
+}
+
+.mcal-updates__inner {
+  border: 1px solid #d9d2ff;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #f6f3ff 0%, #fdfcff 100%);
+  padding: 0.75rem 0.95rem;
+}
+
+.mcal-updates__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.mcal-updates__badge {
+  font-weight: 900;
+  color: #3c1b9c;
+}
+
+.mcal-updates__dismiss {
+  border: none;
+  background: transparent;
+  font-size: 1.35rem;
+  line-height: 1;
+  color: #5b5b78;
+  cursor: pointer;
+  padding: 0 0.25rem;
+}
+
+.mcal-updates__groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.6rem;
+}
+
+.mcal-updates__group {
+  border-radius: 9px;
+  padding: 0.5rem 0.65rem;
+  background: #fff;
+  border-left: 4px solid #b9b1e6;
+}
+
+.mcal-updates__group--cancelled { border-left-color: #dc2626; }
+.mcal-updates__group--rescheduled { border-left-color: #0f8f68; }
+.mcal-updates__group--created { border-left-color: #1769ff; }
+
+.mcal-updates__group strong {
+  display: block;
+  color: #12004f;
+  margin-bottom: 0.3rem;
+  font-size: 0.92rem;
+}
+
+.mcal-updates__group ul {
+  margin: 0;
+  padding-left: 1.05rem;
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.85rem;
+  color: #33355a;
+}
+
+/* Relleno automático de salones */
+.mcal-autofill {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.mcal-autofill__intro {
+  margin: 0;
+  color: #12004f;
+}
+
+.mcal-autofill__rooms {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+  max-height: 46vh;
+  overflow: auto;
+}
+
+.mcal-autofill__list {
+  display: grid;
+  gap: 0.4rem;
+  max-height: 52vh;
+  overflow: auto;
+  padding-right: 0.2rem;
+}
+
+.mcal-autofill__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border: 1px solid #e2e6f3;
+  border-radius: 9px;
+  padding: 0.45rem 0.6rem;
+  background: #fafbff;
+}
+
+.mcal-autofill__info {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.mcal-autofill__time {
+  font-weight: 900;
+  color: #12004f;
+  font-variant-numeric: tabular-nums;
+}
+
+.mcal-autofill__svc {
+  color: #1c1f3a;
+  font-weight: 700;
+}
+
+.mcal-autofill__staff {
+  color: #6a6d8c;
+  font-size: 0.85rem;
+}
+
+.mcal-autofill__select {
+  flex: 0 0 auto;
+  min-height: 2.3rem;
+  border: 1px solid #cfd6ea;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0.3rem 0.5rem;
+  font: inherit;
+  max-width: 45%;
+}
+
+.mcal-autofill__room,
+.mcal-autofill__unplaced {
+  border: 1px solid #e2e6f3;
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+  background: #fafbff;
+}
+
+.mcal-autofill__unplaced {
+  border-color: #f0c9a3;
+  background: #fff7ee;
+}
+
+.mcal-autofill__room strong,
+.mcal-autofill__unplaced strong {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: #12004f;
+  margin-bottom: 0.4rem;
+}
+
+.mcal-autofill__room ul,
+.mcal-autofill__unplaced ul {
+  margin: 0;
+  padding-left: 1.05rem;
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+  color: #33355a;
+}
+
+.mcal-autofill__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+.mcal-autofill__actions button {
+  min-height: 2.6rem;
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.mcal-autofill__actions [data-autofill-cancel] {
+  border: 1px solid #cfd6ea;
+  background: #fff;
+  color: #33355a;
+}
+
+.mcal-autofill__actions [data-autofill-apply] {
+  border: 1px solid #5729ff;
+  background: #5729ff;
+  color: #fff;
+}
+
+.mcal-autofill__actions [data-autofill-apply]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mcal-autofill__status {
+  margin: 0;
+  min-height: 1.2rem;
+  color: #7a4d00;
+}
+
+.mcal-room-list-item span,
+.mcal-room-list-item small {
+  color: #68708a;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.mcal-live-grid,
+.mcal-room-columns,
+.mcal-teacher-groups,
+.mcal-kpis {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.mcal-live-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.mcal-room-columns {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.mcal-teacher-groups {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.mcal-kpis {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.mcal-live-column,
+.mcal-room-column,
+.mcal-teacher-group {
+  padding: 0.75rem;
+}
+
+.mcal-live-column h4,
+.mcal-room-column h4,
+.mcal-teacher-group h4 {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0 0 0.65rem;
+  color: #12004f;
+  font-size: 0.95rem;
+}
+
+.mcal-room-column.is-drop-target {
+  background: #eef4ff;
+  outline: 2px dashed #1f62ff;
+  outline-offset: -6px;
+}
+
+.mcal-room-column--student-location {
+  border-color: #c9efe0;
+  background: #f4fffa;
+}
+
+.mcal-room-column--student-location h4 {
+  color: #075f46;
+}
+
+.mcal-rooms-search {
+  padding: 0 0 0.75rem;
+}
+
+.mcal-rooms-search input {
+  width: 100%;
+  min-height: 2.65rem;
+  border: 1px solid #dfe5f4;
+  border-radius: 8px;
+  padding: 0.65rem 0.8rem;
+  font: inherit;
+}
+
+.mcal-kpi {
+  display: grid;
+  gap: 0.2rem;
+  padding: 1rem;
+}
+
+.mcal-kpi strong {
+  color: #12004f;
+  font-size: 1.8rem;
+}
+
+.mcal-kpi span {
+  color: #68708a;
+  font-weight: 800;
+}
+
+.mcal-rooms__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 0.8rem;
+}
+
+.mcal-rooms__table-wrap {
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid #e2e6f2;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.mcal-rooms-table {
+  width: max(100%, 1280px);
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.mcal-rooms-table th,
+.mcal-rooms-table td {
+  border-right: 1px solid #e2e6f2;
+  border-bottom: 1px solid #edf0f7;
+  vertical-align: top;
+}
+
+.mcal-rooms-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f6f8ff;
+  color: #12004f;
+  padding: 0.7rem 0.55rem;
+  font-size: 0.82rem;
+}
+
+.mcal-rooms-table th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  width: 62px;
+  background: #f8f9fd;
+  color: #68708a;
+}
+
+.mcal-rooms-table tbody th {
+  padding: 0.5rem 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.mcal-rooms-table td {
+  height: 62px;
+  padding: 0.28rem;
+  background: #fff;
+}
+
+.mcal-rooms-table td.is-drop-target {
+  background: #eef4ff;
+  outline: 2px dashed #1f62ff;
+  outline-offset: -5px;
+}
+
+.mcal-room {
+  border: 1px solid #e2e6f2;
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.mcal-room--unassigned {
+  margin-bottom: 0.9rem;
+  border-color: #ffd88a;
+  background: #fffaf0;
+}
+
+.mcal-room--unassigned h4 {
+  background: #fff2cf;
+  color: #7a4d00;
+}
+
+.mcal-room h4 {
+  margin: 0;
+  padding: 0.75rem 0.85rem;
+  background: #f6f8ff;
+  color: #12004f;
+  font-size: 0.95rem;
+}
+
+.mcal-room__day {
+  padding: 0.7rem 0.85rem;
+  border-top: 1px solid #edf0f7;
+  min-height: 72px;
+}
+
+.mcal-room__day.is-drop-target {
+  background: #eef4ff;
+  outline: 2px dashed #1f62ff;
+  outline-offset: -6px;
+}
+
+.mcal-room__day strong {
+  display: block;
+  margin-bottom: 0.45rem;
+  color: #5b6078;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+}
+
+.mcal-room__day p {
+  margin: 0;
+  color: #9aa0b7;
+  font-size: 0.85rem;
+}
+
+.mcal-room__event {
+  width: 100%;
+  display: grid;
+  gap: 0.15rem;
+  border: 1px solid #e2e6f2;
+  border-left: 5px solid var(--mcal-event-accent, #5d2fd1);
+  border-radius: 8px;
+  background: #fff;
+  color: #12004f;
+  padding: 0.55rem 0.6rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mcal-room__event[draggable="true"] {
+  cursor: grab;
+}
+
+.mcal-room__event.is-dragging {
+  opacity: 0.55;
+  cursor: grabbing;
+}
+
+.mcal-room__event--automatic {
+  background: #f4fffa;
+}
+
+.mcal-room__event + .mcal-room__event {
+  margin-top: 0.45rem;
+}
+
+.mcal-room__event span,
+.mcal-room__event small {
+  color: #68708a;
+  font-weight: 700;
+}
+
+.mcal-room-assign {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.mcal-room-assign select {
+  min-width: min(100%, 260px);
+  border: 1px solid #dfe5f4;
+  border-radius: 8px;
+  padding: 0.65rem 0.75rem;
+}
+
+.mcal-room-assign button {
+  border: 0;
+  border-radius: 8px;
+  background: #1f62ff;
+  color: #fff;
+  padding: 0.65rem 0.85rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.mcal-room-assign__status {
+  color: #5b6078;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.mcal-modal__header {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: #fff;
+  border-bottom: 1px solid var(--haydn, #e6e8e8);
+}
+
+.mcal-modal__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--bach, #220a63);
+}
+
+.mcal-modal__close {
+  border: none;
+  background: var(--debussy, #f9f9f9);
+  color: var(--wagner, #0c0a1e);
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.mcal-modal__close:hover { background: var(--haydn, #e6e8e8); }
+
+.mcal-modal__body { padding: 1rem 1.25rem 1.4rem; }
+
+.mcal-modal__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem 1rem;
+  margin: 0;
+}
+
+.mcal-modal__row--full { grid-column: 1 / -1; }
+
+.mcal-modal__row dt {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b6b80;
+  margin-bottom: 0.15rem;
+}
+
+.mcal-modal__row dd {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--wagner, #0c0a1e);
+  overflow-wrap: anywhere;
+}
+
+.mcal-participants {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.mcal-participants li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--haydn, #e6e8e8);
+  border-radius: 8px;
+  padding: 0.55rem;
+}
+
+.mcal-participants strong,
+.mcal-participants span {
+  display: block;
+}
+
+.mcal-participants span {
+  color: #5a5a6e;
+  font-size: 0.82rem;
+  margin-top: 0.1rem;
+}
+
+.mcal-participants .mcal-participants__actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+
+.mcal-participants__actions button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid #c7d7ff;
+  border-radius: 6px;
+  color: #0b57d0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-decoration: none;
+  background: #fff;
+  cursor: pointer;
+}
+
+.mcal-participants__actions button:hover {
+  background: #edf3ff;
+}
+
+.mcal-participants__actions button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.mcal-participants .mcal-participants__missing {
+  color: #6b7280;
+  font-size: 0.8rem;
+}
+
+.mcal-student-empty {
+  margin: 0;
+  padding: 1rem;
+  color: #5a5a6e;
+  text-align: center;
+}
+
+.mcal-journal {
+  display: grid;
+  gap: 12px;
+}
+
+.mcal-journal__count {
+  margin: 0;
+  color: #5a5a6e;
+  font-size: 0.9rem;
+}
+
+.mcal-journal__entry {
+  padding: 14px;
+  border: 1px solid var(--haydn, #e6e8e8);
+  border-radius: 8px;
+}
+
+.mcal-journal__entry time,
+.mcal-journal__meta {
+  color: #686879;
+  font-size: 0.8rem;
+}
+
+.mcal-journal__entry h4 {
+  margin: 4px 0;
+  font-size: 1rem;
+}
+
+.mcal-journal__entry p {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+}
+
+/* ----------------------- Responsive ------------------------- */
+
+@media (max-width: 768px) {
+  .mcal { padding: 0.9rem 0.75rem 1.1rem; border-radius: 12px; }
+
+  .mcal__header { align-items: flex-start; }
+
+  .mcal__filters { width: 100%; }
+  .mcal__filter { flex: 1 1 45%; }
+  .mcal__filter select { min-width: 0; width: 100%; }
+
+  .mcal .fc .fc-toolbar {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: stretch;
+  }
+
+  .mcal .fc .fc-toolbar-chunk {
+    display: flex;
+    justify-content: center;
+  }
+
+  .mcal-rooms {
+    padding: 0.75rem 0;
+  }
+
+  .mcal-rooms-layout,
+  .mcal-live-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mcal-rooms-sidebar {
+    position: static;
+    max-height: none;
+  }
+
+  .mcal-rooms-sidebar__list {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(230px, 78vw);
+    overflow-x: auto;
+  }
+
+  .mcal-rooms-panel {
+    min-height: 320px;
+    padding: 0.6rem;
+  }
+
+  .mcal-rooms__head,
+  .mcal-rooms__nav {
+    align-items: stretch;
+  }
+
+  .mcal-rooms__nav strong {
+    flex-basis: 100%;
+  }
+
+  .mcal-modal__grid { grid-template-columns: 1fr; }
+}
+
+/* ============================================================
+   Capa premium — pulido visual y UX (desktop + móvil)
+   ============================================================ */
+
+/* Cabecera con leve degradado de marca */
+.mcal__header {
+  background: linear-gradient(180deg, #fbfcff, #fff);
+}
+
+.mcal__title {
+  letter-spacing: -0.01em;
+}
+
+/* Chips de leyenda con punto de color y micro-interacción */
+.mcal__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mcal__legend .mcal__chip::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+
+.mcal__legend .mcal__chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(12, 10, 30, 0.10);
+}
+
+/* Selects de filtros más suaves */
+.mcal__filter select {
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(12, 10, 30, 0.05);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mcal__filter select:hover {
+  border-color: #cdc4ff;
+}
+
+/* Botones del módulo con hover consistente */
+.mcal__upload button,
+.mcal-settings button {
+  background: linear-gradient(120deg, var(--mcal-accent, #5729ff), var(--mcal-primary, #0c41c4));
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(87, 41, 255, 0.22);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+
+.mcal__upload button:hover,
+.mcal-settings button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(87, 41, 255, 0.30);
+}
+
+.mcal__settings-button {
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.mcal__settings-button:hover {
+  background: #f4f2ff;
+  border-color: #cdc4ff;
+}
+
+.mcal__settings-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  margin-left: 0.35rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+/* FullCalendar: hoy resaltado y botones activos con marca */
+.mcal .fc {
+  --fc-today-bg-color: #f5f2ff;
+}
+
+.mcal .fc .fc-button {
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.mcal .fc .fc-button-primary:not(:disabled).fc-button-active,
+.mcal .fc .fc-button-primary:not(:disabled):active {
+  background: linear-gradient(120deg, var(--mcal-accent, #5729ff), var(--mcal-primary, #0c41c4));
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(87, 41, 255, 0.25);
+}
+
+.mcal .fc .fc-day-today .fc-daygrid-day-number {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.7rem;
+  min-height: 1.7rem;
+  margin: 0.15rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--mcal-accent, #5729ff), var(--mcal-primary, #0c41c4));
+  color: #fff;
+  font-weight: 700;
+}
+
+/* Eventos: sombra suave, hover con elevación */
+.mcal .mcal-event {
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(12, 10, 30, 0.14);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+
+.mcal .mcal-event:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(34, 10, 99, 0.24);
+  filter: brightness(1.04);
+  z-index: 5;
+}
+
+.mcal .mcal-event--confirmed,
+.mcal .mcal-event--rescheduled,
+.mcal .mcal-event--updated,
+.mcal .mcal-event--blocked {
+  background-image: none;
+}
+
+.mcal-ev {
+  padding: 3px 7px;
+}
+
+/* Indicador de hora actual más visible */
+.mcal .fc .fc-timegrid-now-indicator-line {
+  border-color: var(--mcal-magenta, #ce0071);
+  border-width: 2px;
+}
+
+.mcal .fc .fc-timegrid-now-indicator-arrow {
+  border-color: var(--mcal-magenta, #ce0071);
+}
+
+/* Modal: fondo con blur y cierre pulido */
+.mcal-modal__overlay,
+.mcal-settings__overlay {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.mcal-modal__close {
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.mcal-modal__close:hover {
+  transform: rotate(90deg);
+}
+
+/* Panel de ajustes: entrada deslizante */
+.mcal-settings__panel {
+  border-radius: 18px 0 0 18px;
+  animation: mcal-slide-in 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes mcal-slide-in {
+  from { transform: translateX(28px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mcal-settings__panel { animation: none; }
+  .mcal .mcal-event,
+  .mcal__chip,
+  .mcal-modal__close { transition: none; }
+}
+
+/* Scrollbars discretos (WebKit) */
+.mcal-settings__body::-webkit-scrollbar,
+.mcal-modal__panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.mcal-settings__body::-webkit-scrollbar-thumb,
+.mcal-modal__panel::-webkit-scrollbar-thumb {
+  background: #d3d6e8;
+  border-radius: 999px;
+}
+
+/* Participantes y bitácoras como tarjetas */
+.mcal-participants li,
+.mcal-journal__entry {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(12, 10, 30, 0.05);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mcal-participants li:hover,
+.mcal-journal__entry:hover {
+  border-color: #cdc4ff;
+  box-shadow: 0 4px 12px rgba(34, 10, 99, 0.10);
+}
+
+.mcal-participants__actions button {
+  border-radius: 999px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+/* ------------------- Móvil premium -------------------------- */
+
+@media (max-width: 768px) {
+  .mcal { padding: 0.6rem 0.6rem 1rem; border-radius: 0; }
+
+  .mcal__header { padding: 0.7rem 0.35rem; }
+
+  .mcal__title { font-size: 1.15rem; }
+
+  /* Leyenda deslizable en una sola línea, sin ocupar pantalla */
+  .mcal__legend {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 0.55rem 0.35rem;
+  }
+
+  .mcal__legend::-webkit-scrollbar { display: none; }
+
+  .mcal__chip { flex: 0 0 auto; }
+
+  /* Toolbar compacta y táctil */
+  .mcal .fc .fc-toolbar-title { font-size: 1rem; }
+
+  .mcal .fc .fc-button {
+    min-height: 42px;
+    padding: 0.4rem 0.75rem;
+  }
+
+  /* Filas de lista más cómodas al tacto */
+  .mcal .fc-list-event td { padding: 0.7rem 0.6rem; }
+
+  /* Modal como hoja inferior (bottom sheet) */
+  .mcal-modal { padding: 0; align-items: end; }
+
+  .mcal-modal__panel {
+    width: 100%;
+    max-height: 88dvh;
+    border-radius: 20px 20px 0 0;
+    animation: mcal-sheet-up 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .mcal-modal__panel::before {
+    content: "";
+    display: block;
+    width: 42px;
+    height: 4px;
+    margin: 8px auto 0;
+    border-radius: 999px;
+    background: #d9dcec;
+  }
+
+  /* Panel de ajustes ocupa todo el ancho en móvil */
+  .mcal-settings__panel { border-radius: 0; }
+}
+
+@keyframes mcal-sheet-up {
+  from { transform: translateY(24px); opacity: 0.4; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mcal-modal__panel { animation: none; }
+}
