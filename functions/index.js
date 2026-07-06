@@ -403,6 +403,29 @@ async function findSupersededBookings(db, booking) {
   });
 }
 
+/* Deduplicación por horario: si llega una reserva (nueva o actualizada) y ya
+   existen OTRAS activas en el MISMO horario para el mismo cliente y servicio,
+   son duplicados y se marcan como superados. Caso típico: al cambiar el
+   docente en Wix (sin cambiar la fecha), Wix emite un booking_id nuevo y la
+   versión anterior —con el docente viejo— queda duplicada en el mismo horario.
+   A propósito NO se filtra por docente, para atrapar justamente esos cambios.
+   Solo consulta por igualdades (startDate + customerEmail + serviceName), que
+   Firestore resuelve sin índice compuesto. */
+async function findDuplicateSlotBookings(db, booking) {
+  if (!booking.startDate || !booking.customerEmail || !booking.serviceName) return [];
+
+  const snap = await db.collection("calendarioWix")
+    .where("startDate", "==", booking.startDate)
+    .where("customerEmail", "==", booking.customerEmail)
+    .where("serviceName", "==", booking.serviceName)
+    .get();
+
+  return snap.docs.filter((doc) => {
+    if (doc.id === booking.bookingId) return false;
+    return normalizeStatus(doc.data().status) !== "cancelled";
+  });
+}
+
 /* ==================== Cloud Function ======================= */
 
 exports.wixBookingWebhook = onRequest(
@@ -651,6 +674,32 @@ exports.wixBookingWebhook = onRequest(
             bookingId: booking.bookingId,
             previousStartDateRaw: booking.previousStartDateRaw,
             supersededBookingIds,
+          });
+        }
+      }
+
+      /* Duplicados en el MISMO horario (p.ej. cambio de docente con booking_id
+         nuevo y misma fecha): retirar las versiones anteriores para que no se
+         vean dos clases en el mismo espacio. */
+      if (!isCancellation) {
+        const duplicates = await findDuplicateSlotBookings(db, booking);
+        if (duplicates.length) {
+          const batch = db.batch();
+          duplicates.forEach((doc) => {
+            batch.set(doc.ref, {
+              status: "cancelled",
+              supersededByBookingId: booking.bookingId,
+              supersededAt: now,
+              cancellationReceivedAt: now,
+              updatedAt: now,
+            }, { merge: true });
+          });
+          await batch.commit();
+          const dedupedBookingIds = duplicates.map((doc) => doc.id);
+          supersededBookingIds = [...new Set([...supersededBookingIds, ...dedupedBookingIds])];
+          console.log("wixBookingWebhook deduped same-slot", {
+            bookingId: booking.bookingId,
+            dedupedBookingIds,
           });
         }
       }
