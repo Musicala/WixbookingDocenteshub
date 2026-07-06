@@ -750,6 +750,113 @@ exports.wixBookingWebhook = onRequest(
   }
 );
 
+/* ============================================================
+   Mantenimiento de un solo uso: dedupeCalendarioWix
+   ------------------------------------------------------------
+   Limpia duplicados YA existentes en el mismo horario (mismo
+   startDate + customerEmail + serviceName) dejando solo la reserva
+   más reciente y marcando el resto como cancelada/superada. Pensado
+   para el caso de talleres que cambiaron de docente y quedaron
+   duplicados antes de desplegar la deduplicación del webhook.
+
+   Uso (protegido con el mismo secreto del webhook):
+     - Dry-run (no escribe, solo reporta):
+         GET  .../dedupeCalendarioWix?secret=CLAVE
+     - Aplicar cambios:
+         GET  .../dedupeCalendarioWix?secret=CLAVE&apply=true
+     - Limitar por rango de fechas (recomendado):
+         &from=2026-06-01&to=2026-07-31
+   ============================================================ */
+exports.dedupeCalendarioWix = onRequest(async (req, res) => {
+  try {
+    const secret =
+      req.get("x-musicala-secret") ||
+      (req.body && req.body.secret) ||
+      req.query.secret ||
+      "";
+    if (secret !== process.env.WIX_WEBHOOK_SECRET) {
+      return res.status(401).json({ ok: false, error: "Unauthorized" });
+    }
+
+    const apply = String(req.query.apply || "") === "true";
+    const from = cleanText(req.query.from);
+    const to = cleanText(req.query.to);
+
+    const db = admin.firestore();
+    let query = db.collection("calendarioWix");
+    if (from) query = query.where("startDate", ">=", from);
+    if (to) query = query.where("startDate", "<=", to + "");
+    const snap = await query.get();
+
+    /* Agrupar activas por horario+cliente+servicio */
+    const groups = new Map();
+    snap.docs.forEach((doc) => {
+      const d = doc.data();
+      if (normalizeStatus(d.status) === "cancelled") return;
+      if (!d.startDate || !d.customerEmail || !d.serviceName) return;
+      const key = [
+        d.startDate,
+        normalizeEmail(d.customerEmail),
+        cleanText(d.serviceName),
+      ].join("|");
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(doc);
+    });
+
+    const millis = (doc) => {
+      const d = doc.data();
+      const t = d.updatedAt || d.receivedAt || d.createdAt;
+      return t && typeof t.toMillis === "function" ? t.toMillis() : 0;
+    };
+
+    const now = admin.firestore.FieldValue.serverTimestamp();
+    const dupGroups = [];
+    let cancelledCount = 0;
+    const batch = db.batch();
+
+    groups.forEach((docs, key) => {
+      if (docs.length < 2) return;
+      /* Conservar la más reciente; superar el resto. */
+      const sorted = [...docs].sort((a, b) => millis(b) - millis(a));
+      const keep = sorted[0];
+      const drop = sorted.slice(1);
+      dupGroups.push({
+        key,
+        keep: keep.id,
+        keepStaff: keep.data().staffName || keep.data().staffEmail || "",
+        drop: drop.map((doc) => ({ id: doc.id, staff: doc.data().staffName || doc.data().staffEmail || "" })),
+      });
+      drop.forEach((doc) => {
+        cancelledCount += 1;
+        if (apply) {
+          batch.set(doc.ref, {
+            status: "cancelled",
+            supersededByBookingId: keep.id,
+            supersededAt: now,
+            cancellationReceivedAt: now,
+            updatedAt: now,
+            dedupMaintenance: true,
+          }, { merge: true });
+        }
+      });
+    });
+
+    if (apply && cancelledCount) await batch.commit();
+
+    return res.status(200).json({
+      ok: true,
+      applied: apply,
+      scanned: snap.size,
+      duplicateGroups: dupGroups.length,
+      cancelled: cancelledCount,
+      detail: dupGroups.slice(0, 200),
+    });
+  } catch (error) {
+    console.error("Error en dedupeCalendarioWix:", error);
+    return res.status(500).json({ ok: false, error: error.message || "Internal server error" });
+  }
+});
+
 /*
   ============================================================
   PRUEBA MANUAL — PowerShell
