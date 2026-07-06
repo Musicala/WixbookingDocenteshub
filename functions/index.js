@@ -788,6 +788,18 @@ exports.dedupeCalendarioWix = onRequest(async (req, res) => {
     if (to) query = query.where("startDate", "<=", to + "");
     const snap = await query.get();
 
+    /* startDate se guarda como Timestamp (objeto), no como string. Hay que
+       serializarlo a un valor canónico o el key colapsaría TODAS las fechas en
+       "[object Object]" y agruparía clases de días distintos como duplicados. */
+    const startKey = (v) => {
+      if (!v) return "";
+      if (typeof v === "string") return v;
+      if (typeof v.toMillis === "function") return String(v.toMillis());
+      if (v._seconds != null) return String(v._seconds) + "." + String(v._nanoseconds || 0);
+      if (v instanceof Date) return String(v.getTime());
+      return String(v);
+    };
+
     /* Agrupar activas por horario+cliente+servicio */
     const groups = new Map();
     snap.docs.forEach((doc) => {
@@ -795,7 +807,7 @@ exports.dedupeCalendarioWix = onRequest(async (req, res) => {
       if (normalizeStatus(d.status) === "cancelled") return;
       if (!d.startDate || !d.customerEmail || !d.serviceName) return;
       const key = [
-        d.startDate,
+        startKey(d.startDate),
         normalizeEmail(d.customerEmail),
         cleanText(d.serviceName),
       ].join("|");
@@ -811,8 +823,7 @@ exports.dedupeCalendarioWix = onRequest(async (req, res) => {
 
     const now = admin.firestore.FieldValue.serverTimestamp();
     const dupGroups = [];
-    let cancelledCount = 0;
-    const batch = db.batch();
+    const toCancel = [];
 
     groups.forEach((docs, key) => {
       if (docs.length < 2) return;
@@ -826,22 +837,28 @@ exports.dedupeCalendarioWix = onRequest(async (req, res) => {
         keepStaff: keep.data().staffName || keep.data().staffEmail || "",
         drop: drop.map((doc) => ({ id: doc.id, staff: doc.data().staffName || doc.data().staffEmail || "" })),
       });
-      drop.forEach((doc) => {
-        cancelledCount += 1;
-        if (apply) {
-          batch.set(doc.ref, {
+      drop.forEach((doc) => toCancel.push({ ref: doc.ref, keepId: keep.id }));
+    });
+
+    const cancelledCount = toCancel.length;
+
+    /* Escribir en lotes de 400 (límite de 500 por batch de Firestore). */
+    if (apply && cancelledCount) {
+      for (let i = 0; i < toCancel.length; i += 400) {
+        const batch = db.batch();
+        toCancel.slice(i, i + 400).forEach(({ ref, keepId }) => {
+          batch.set(ref, {
             status: "cancelled",
-            supersededByBookingId: keep.id,
+            supersededByBookingId: keepId,
             supersededAt: now,
             cancellationReceivedAt: now,
             updatedAt: now,
             dedupMaintenance: true,
           }, { merge: true });
-        }
-      });
-    });
-
-    if (apply && cancelledCount) await batch.commit();
+        });
+        await batch.commit();
+      }
+    }
 
     return res.status(200).json({
       ok: true,
