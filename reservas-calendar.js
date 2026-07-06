@@ -47,6 +47,8 @@ const COLLECTION_NAME = "calendarioWix";
 const ADMIN_EMAILS = [
   "alekcaballeromusic@gmail.com",
   "catalina.medina.leal@gmail.com",
+  "musicalaasesor@gmail.com",
+  "adminmusicala@gmail.com",
 ];
 
 // Franja horaria visible en vistas de semana/día
