@@ -781,6 +781,11 @@ exports.dedupeCalendarioWix = onRequest(async (req, res) => {
     const apply = String(req.query.apply || "") === "true";
     const from = cleanText(req.query.from);
     const to = cleanText(req.query.to);
+    /* ignoreService=true agrupa por horario+cliente (sin serviceName): sirve
+       para duplicados por cambio de docente donde el texto del servicio difiere
+       (acentos mal codificados, etc.). Un mismo cliente no puede tener dos
+       clases al mismo instante, así que es un criterio seguro. */
+    const ignoreService = String(req.query.ignoreService || "") === "true";
 
     const db = admin.firestore();
     let query = db.collection("calendarioWix");
@@ -809,7 +814,7 @@ exports.dedupeCalendarioWix = onRequest(async (req, res) => {
       const key = [
         startKey(d.startDate),
         normalizeEmail(d.customerEmail),
-        cleanText(d.serviceName),
+        ignoreService ? "" : cleanText(d.serviceName),
       ].join("|");
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(doc);
@@ -835,7 +840,12 @@ exports.dedupeCalendarioWix = onRequest(async (req, res) => {
         key,
         keep: keep.id,
         keepStaff: keep.data().staffName || keep.data().staffEmail || "",
-        drop: drop.map((doc) => ({ id: doc.id, staff: doc.data().staffName || doc.data().staffEmail || "" })),
+        keepService: keep.data().serviceName || "",
+        drop: drop.map((doc) => ({
+          id: doc.id,
+          staff: doc.data().staffName || doc.data().staffEmail || "",
+          service: doc.data().serviceName || "",
+        })),
       });
       drop.forEach((doc) => toCancel.push({ ref: doc.ref, keepId: keep.id }));
     });
