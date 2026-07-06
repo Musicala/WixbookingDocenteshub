@@ -1602,7 +1602,11 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       button.classList.toggle("is-active", button.dataset.mcalMode === state.displayMode);
     });
     if (state.displayMode === "calendar") state.calendar?.updateSize();
-    if (state.displayMode === "rooms") renderRoomsView();
+    if (state.displayMode === "rooms") {
+      ensureRoomsDayLoaded();
+      pickInitialRoomsDay();
+      renderRoomsView();
+    }
     if (typeof onDisplayModeChange === "function") onDisplayModeChange(state.displayMode);
   }
 
@@ -1666,7 +1670,39 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     } else {
       state.roomsDate = addDays(getRoomsSelectedDay(state.calendar?.getEvents() || []), Number(action || 0));
     }
+    ensureRoomsDayLoaded();
     renderEvents();
+  }
+
+  /* Si el día seleccionado en Salones cae fuera de la semana cargada en el
+     calendario, movemos el calendario a esa fecha. Eso dispara datesSet ->
+     subscribeToRange, que carga las reservas de ese rango y vuelve a pintar
+     Salones (renderEvents llama a renderRoomsView). Sin esto, Salones se
+     quedaba vacío al navegar a días de otra semana. */
+  function ensureRoomsDayLoaded() {
+    if (!state.calendar || !state.roomsDate) return;
+    const view = state.calendar.view;
+    if (!view) return;
+    const start = startOfLocalDay(view.activeStart);
+    const end = startOfLocalDay(view.activeEnd);
+    const day = startOfLocalDay(state.roomsDate);
+    if (day < start || day >= end) {
+      state.calendar.gotoDate(state.roomsDate);
+    }
+  }
+
+  /* Al entrar a Salones, si el día elegido no tiene clases pero la semana
+     cargada sí, saltamos al primer día con clases para no mostrar un día
+     vacío (p. ej. un lunes sin clases). Solo actúa dentro de la semana ya
+     cargada; la navegación manual con las flechas no se toca. */
+  function pickInitialRoomsDay() {
+    const events = buildRoomsEvents();
+    if (!events.length) return;
+    const day = getRoomsSelectedDay(events);
+    const dayHasClasses = events.some((e) => sameLocalDate(new Date(e.start), day));
+    if (dayHasClasses) return;
+    const first = [...events].sort((a, b) => new Date(a.start) - new Date(b.start))[0];
+    if (first) state.roomsDate = startOfLocalDay(new Date(first.start));
   }
 
   /* --------------------- Carga CSV admin -------------------- */
