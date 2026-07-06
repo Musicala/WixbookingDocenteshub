@@ -51,6 +51,14 @@ const ADMIN_EMAILS = [
   "adminmusicala@gmail.com",
 ];
 
+/* Cuentas admin que NO dan clases (asesor/coordinación): para ellas la
+   opción "Mis clases" no tiene sentido, así que ven "Todas" por defecto y
+   se les oculta el filtro de alcance. */
+const ADVISOR_EMAILS = [
+  "musicalaasesor@gmail.com",
+  "adminmusicala@gmail.com",
+];
+
 // Franja horaria visible en vistas de semana/día
 const SLOT_MIN_TIME = "06:00:00";
 const SLOT_MAX_TIME = "21:30:00";
@@ -419,6 +427,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
 
   const email = String(userEmail).trim().toLowerCase();
   const isAdmin = ADMIN_EMAILS.includes(email);
+  const isAdvisor = ADVISOR_EMAILS.includes(email);
 
   /* ------------------------- Estado ------------------------- */
 
@@ -429,7 +438,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     bookings: new Map(),      // bookingId -> data del rango visible
     staffLinks: new Map(),    // nombre normalizado de Wix/CSV -> email Hub
     roomAssignments: new Map(), // groupKey -> asignacion de salon
-    filters: { alcance: "mine", docente: "", estado: "", servicio: "", especial: "" },
+    filters: { alcance: isAdvisor ? "all" : "mine", docente: "", estado: "", servicio: "", especial: "" },
     displayMode: "calendar",
     roomsView: isAdmin ? "table" : "live",
     roomsSearch: "",
@@ -487,13 +496,14 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
   function renderAdminFiltersHTML() {
     return `
       <div class="mcal__filters" id="mcal-filters">
+        ${isAdvisor ? "" : `
         <label class="mcal__filter">
           <span>Vista</span>
           <select id="mcal-f-alcance">
             <option value="mine" selected>Mis clases</option>
             <option value="all">Todas</option>
           </select>
-        </label>
+        </label>`}
         <label class="mcal__filter">
           <span>Docente</span>
           <select id="mcal-f-docente" disabled><option value="">Todos</option></select>
@@ -651,10 +661,23 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
         : blocked
           ? `<span class="mcal-ev__tag">Bloqueado</span> `
           : "";
-      const extra =
-        p.roomAssignment?.roomName || p.modality
-          ? `<span class="mcal-ev__meta">${escapeHTML(p.roomAssignment?.roomName || p.modality)}</span>`
+      const roomName = p.roomAssignment?.roomName;
+      let extra;
+      if (isMobile) {
+        // En el celular (docente) mostramos la info clave separada: salón,
+        // modalidad y estado (si no es confirmada) como etiquetas.
+        const bits = [];
+        if (roomName) bits.push(`<span class="mcal-ev__meta mcal-ev__meta--room">${escapeHTML(roomName)}</span>`);
+        if (p.modality) bits.push(`<span class="mcal-ev__meta mcal-ev__meta--modality">${escapeHTML(p.modality)}</span>`);
+        if (["pending", "rescheduled", "updated"].includes(p.statusKey)) {
+          bits.push(`<span class="mcal-ev__meta mcal-ev__meta--status is-${p.statusKey}">${escapeHTML(STATUS_LABELS[p.statusKey] || "")}</span>`);
+        }
+        extra = bits.length ? `<span class="mcal-ev__metarow">${bits.join("")}</span>` : "";
+      } else {
+        extra = roomName || p.modality
+          ? `<span class="mcal-ev__meta">${escapeHTML(roomName || p.modality)}</span>`
           : "";
+      }
       const dot = !cancelled && p.accentColor
         ? `<span class="mcal-ev__dot" style="background:${escapeHTML(p.accentColor)}"></span>`
         : "";
@@ -1491,7 +1514,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     };
     const previousScope = state.filters.alcance;
     state.filters = {
-      alcance: get("#mcal-f-alcance") || "mine",
+      alcance: get("#mcal-f-alcance") || (isAdvisor ? "all" : "mine"),
       docente: get("#mcal-f-docente"),
       estado: get("#mcal-f-estado"),
       servicio: get("#mcal-f-servicio"),

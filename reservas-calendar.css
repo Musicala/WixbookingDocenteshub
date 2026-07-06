@@ -54,7 +54,26 @@
 .mcal__filters {
   display: flex;
   flex-wrap: wrap;
+  align-items: end;
   gap: 0.6rem;
+}
+
+/* En pantallas de escritorio (admin) aprovechamos el ancho: los filtros se
+   reparten con más aire y las acciones (Subir CSV / Vincular) se van a la
+   derecha, dejando la barra más ordenada y legible. */
+@media (min-width: 900px) {
+  .mcal__filters {
+    gap: 0.55rem 0.75rem;
+  }
+  .mcal__filter select {
+    min-width: 8.5rem;
+  }
+  .mcal__upload {
+    margin-left: auto;
+  }
+  .mcal__settings-button {
+    align-self: end;
+  }
 }
 
 .mcal__filter {
@@ -1844,20 +1863,44 @@
   /* Filas de lista más cómodas al tacto */
   .mcal .fc-list-event td { padding: 0.7rem 0.6rem; }
 
-  /* El salón (o modalidad) es la info clave para el docente: resaltarlo
-     como etiqueta legible en la vista lista del celular. */
+  /* Salón, modalidad y estado como fila de etiquetas legibles: es la info
+     clave para el docente en la vista lista del celular. */
+  .mcal .fc-list-event .mcal-ev__metarow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 4px;
+  }
+
   .mcal .fc-list-event .mcal-ev__meta {
     display: inline-block;
-    margin-top: 3px;
     padding: 2px 9px;
     font-size: 0.78rem;
     font-weight: 700;
-    line-height: 1.3;
+    line-height: 1.35;
     white-space: normal;
     color: var(--mcal-primary, #4b2fd6);
     background: rgba(75, 47, 214, 0.10);
     border-radius: 999px;
     opacity: 1;
+  }
+
+  /* Modalidad (sede/hogar/virtual) en un tono neutro para distinguirla del salón. */
+  .mcal .fc-list-event .mcal-ev__meta--modality {
+    color: #334155;
+    background: rgba(51, 65, 85, 0.10);
+    text-transform: capitalize;
+  }
+
+  /* Estado no confirmado: color según el tipo. */
+  .mcal .fc-list-event .mcal-ev__meta--status.is-pending {
+    color: #92600a; background: rgba(217, 167, 44, 0.16);
+  }
+  .mcal .fc-list-event .mcal-ev__meta--status.is-rescheduled {
+    color: #6a3fd6; background: rgba(106, 63, 214, 0.14);
+  }
+  .mcal .fc-list-event .mcal-ev__meta--status.is-updated {
+    color: #15966b; background: rgba(21, 150, 107, 0.14);
   }
 
   /* Modal como hoja inferior (bottom sheet) */
