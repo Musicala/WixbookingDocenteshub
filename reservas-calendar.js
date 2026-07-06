@@ -652,7 +652,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
           ? `<span class="mcal-ev__tag">Bloqueado</span> `
           : "";
       const extra =
-        !isMobile && (p.roomAssignment?.roomName || p.modality)
+        p.roomAssignment?.roomName || p.modality
           ? `<span class="mcal-ev__meta">${escapeHTML(p.roomAssignment?.roomName || p.modality)}</span>`
           : "";
       const dot = !cancelled && p.accentColor

@@ -1844,6 +1844,22 @@
   /* Filas de lista más cómodas al tacto */
   .mcal .fc-list-event td { padding: 0.7rem 0.6rem; }
 
+  /* El salón (o modalidad) es la info clave para el docente: resaltarlo
+     como etiqueta legible en la vista lista del celular. */
+  .mcal .fc-list-event .mcal-ev__meta {
+    display: inline-block;
+    margin-top: 3px;
+    padding: 2px 9px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    line-height: 1.3;
+    white-space: normal;
+    color: var(--mcal-primary, #4b2fd6);
+    background: rgba(75, 47, 214, 0.10);
+    border-radius: 999px;
+    opacity: 1;
+  }
+
   /* Modal como hoja inferior (bottom sheet) */
   .mcal-modal { padding: 0; align-items: end; }
 
