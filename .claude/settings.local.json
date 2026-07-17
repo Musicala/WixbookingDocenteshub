@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-ChildItem css, js, functions | Select-Object Directory, Name, Length; Get-Item reservas-calendar.css, css\\\\reservas-calendar.css | ForEach-Object { \"$\\($_.FullName\\) $\\($_.Length\\) $\\($_.LastWriteTime\\)\" })",
+      "PowerShell(Copy-Item css\\\\reservas-calendar.css reservas-calendar.css -Force)",
+      "PowerShell(\"synced\")",
+      "mcp__visualize__read_me",
+      "mcp__visualize__show_widget",
+      "Bash(git --git-dir=.git --work-tree=. status --short)",
+      "Bash(node --check js/reservas-calendar.js)"
+    ]
+  }
+}
