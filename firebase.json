@@ -23,7 +23,6 @@
       "**/.*",
       "**/node_modules/**",
       "functions/**",
-      "Reservas_Wix_Calendario/**",
       "*.zip",
       "package.json",
       "package-lock.json",
