@@ -59,6 +59,15 @@ const ADVISOR_EMAILS = [
   "adminmusicala@gmail.com",
 ];
 
+/* Docentes con acceso al Hub que aún no cuentan con un documento en
+   hubUsers. Mantenerlos disponibles para vincular reservas y para importar
+   CSV evita que una clase asignada por Wix quede sin asociar. */
+const HUB_TEACHER_FALLBACKS = [
+  { email: "catalina.medina.leal@gmail.com", label: "Catalina Medina" },
+  { email: "alekcaballeromusic@gmail.com", label: "Alek Caballero" },
+  { email: "darasaxcifuentes@gmail.com", label: "Dara Natalia Cifuentes Rojas" },
+];
+
 // Franja horaria visible en vistas de semana/día
 const SLOT_MIN_TIME = "06:00:00";
 const SLOT_MAX_TIME = "21:30:00";
@@ -1897,6 +1906,10 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       });
     });
 
+    HUB_TEACHER_FALLBACKS.forEach((teacher) => {
+      hubUsersByName.set(normalizeStaffKey(teacher.label), teacher.email);
+    });
+
     await Promise.all([...staffNames].map(async (staffName) => {
       const key = normalizeStaffKey(staffName);
       if (!key) return;
@@ -1918,10 +1931,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
 
   async function loadHubTeacherOptions() {
     const snap = await getDocs(collection(db, "hubUsers"));
-    const byEmail = new Map([
-      ["catalina.medina.leal@gmail.com", { email: "catalina.medina.leal@gmail.com", label: "Catalina Medina" }],
-      ["alekcaballeromusic@gmail.com", { email: "alekcaballeromusic@gmail.com", label: "Alek Caballero" }],
-    ]);
+    const byEmail = new Map(HUB_TEACHER_FALLBACKS.map((teacher) => [teacher.email, teacher]));
     snap.forEach((userDoc) => {
       const user = userDoc.data();
       const email = String(user.email || userDoc.id || "").trim().toLowerCase();
