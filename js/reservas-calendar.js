@@ -748,25 +748,40 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
           ? `<span class="mcal-ev__tag">Bloqueado</span> `
           : "";
       const roomName = p.roomAssignment?.roomName;
+      const dot = !cancelled && p.accentColor
+        ? `<span class="mcal-ev__dot" style="background:${escapeHTML(p.accentColor)}"></span>`
+        : "";
       let extra;
       if (isMobile) {
-        // En el celular (docente) mostramos la info clave separada: salón,
-        // modalidad y estado (si no es confirmada) como etiquetas.
-        const bits = [];
-        if (roomName) bits.push(`<span class="mcal-ev__meta mcal-ev__meta--room">${escapeHTML(roomName)}</span>`);
-        if (p.modality) bits.push(`<span class="mcal-ev__meta mcal-ev__meta--modality">${escapeHTML(p.modality)}</span>`);
-        if (["pending", "rescheduled", "updated"].includes(p.statusKey)) {
-          bits.push(`<span class="mcal-ev__meta mcal-ev__meta--status is-${p.statusKey}">${escapeHTML(STATUS_LABELS[p.statusKey] || "")}</span>`);
-        }
-        extra = bits.length ? `<span class="mcal-ev__metarow">${bits.join("")}</span>` : "";
+        // En el celular (docente) la fila es una tarjeta tipo agenda: título,
+        // salón/modalidad, estudiantes visibles de una vez y estado como chip.
+        const subBits = [roomName, p.modality].filter(Boolean);
+        const sub = subBits.length
+          ? `<span class="mcal-ev__sub">${escapeHTML(subBits.join(" · "))}</span>`
+          : "";
+        const names = p.isGroup && Array.isArray(p.participants)
+          ? uniqueParticipants(p.participants).map((x) => x?.name).filter(Boolean)
+          : [p.customerName].filter(Boolean);
+        const students = names.length
+          ? `<span class="mcal-ev__students">${names.length > 1 ? `${names.length} estudiantes · ` : ""}${escapeHTML(names.join(", "))}</span>`
+          : "";
+        const chip = `<span class="mcal-ev__meta mcal-ev__meta--status is-${p.statusKey}">${escapeHTML(STATUS_LABELS[p.statusKey] || p.statusKey || "")}</span>`;
+        return {
+          html: `
+            <div class="mcal-ev mcal-ev--card">
+              <span class="mcal-ev__top">${dot}${time}</span>
+              <span class="mcal-ev__main">${blocked ? prefix : ""}${escapeHTML(p.serviceName || "Clase")}</span>
+              ${sub}
+              ${students}
+              <span class="mcal-ev__metarow">${chip}</span>
+              <span class="mcal-ev__chevron" aria-hidden="true">›</span>
+            </div>`,
+        };
       } else {
         extra = roomName || p.modality
           ? `<span class="mcal-ev__meta">${escapeHTML(roomName || p.modality)}</span>`
           : "";
       }
-      const dot = !cancelled && p.accentColor
-        ? `<span class="mcal-ev__dot" style="background:${escapeHTML(p.accentColor)}"></span>`
-        : "";
       return {
         html: `
           <div class="mcal-ev">
@@ -2525,22 +2540,23 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     const now = new Date();
     const todayEvents = events.filter((event) => sameLocalDate(new Date(event.start), now));
     const active = todayEvents.filter((event) => event.extendedProps?.statusKey !== "cancelled");
-    const pending = active.filter((event) => event.extendedProps?.statusKey === "pending");
+    const cancelled = todayEvents.length - active.length;
+    const rescheduled = active.filter((event) => event.extendedProps?.statusKey === "rescheduled");
     const confirmed = active.filter((event) => event.extendedProps?.statusKey === "confirmed");
-    const label = isAdmin ? "clases programadas hoy" : "clases para hoy";
+    const label = isAdmin ? "clases programadas hoy" : "clases hoy";
 
     todayEl.innerHTML = `
       <div class="mcal-today__headline">
-        <span class="mcal-today__spark">✦</span>
+        <span class="mcal-today__spark">🎉</span>
         <div>
           <strong>${active.length ? `Tienes ${active.length} ${label}` : "No tienes clases para hoy"}</strong>
-          <span>${active.length ? "Aquí tienes tu agenda lista para atender." : "Disfruta el espacio o revisa la Semana."}</span>
+          <span>${active.length ? "¡Sigue así, gran trabajo!" : "Disfruta el espacio o revisa la Semana."}</span>
         </div>
       </div>
       <div class="mcal-today__stats">
-        <div><strong>${active.length}</strong><span>Programadas</span></div>
-        <div><strong>${confirmed.length}</strong><span>Confirmadas</span></div>
-        <div><strong>${pending.length}</strong><span>Pendientes</span></div>
+        <div class="is-confirmed"><strong>${confirmed.length}</strong><span>Confirmadas</span></div>
+        <div class="is-rescheduled"><strong>${rescheduled.length}</strong><span>Reprogramadas</span></div>
+        <div class="is-cancelled"><strong>${cancelled}</strong><span>Canceladas</span></div>
       </div>`;
   }
 

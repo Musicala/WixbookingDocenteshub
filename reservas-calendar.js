@@ -162,6 +162,7 @@ const STAFF_PALETTE = [
   "#8a1c5a", // vino
   "#7a4b00", // ámbar oscuro
 ];
+const AGENDA_TINTS = ["#fff0f5", "#f2efff", "#ecfbfb", "#fff5ea", "#eef6ff"];
 
 // Color por instrumento/servicio (vista docente). El primer grupo de
 // palabras que aparezca en el nombre del servicio define el color.
@@ -212,6 +213,10 @@ function getStaffColor(staffKey) {
   const key = normalizeForMatch(staffKey);
   if (!key) return "#8a8a98";
   return STAFF_PALETTE[hashString(key) % STAFF_PALETTE.length];
+}
+
+function getAgendaTint(key) {
+  return AGENDA_TINTS[hashString(key) % AGENDA_TINTS.length];
 }
 
 function humanFirestorePermissionError(error) {
@@ -399,6 +404,10 @@ function classifyRoomCategory({ serviceName, participantsCount, modality, staffN
 }
 
 function getBookingCancellationMatchKey(booking) {
+  /* Una cancelada que fue reemplazada por una reasignación o por el CSV no
+     representa una cancelación vigente. Si la usamos como llave para ocultar,
+     tapa precisamente la nueva versión correcta de la clase. */
+  if (booking?.supersededByBookingId || booking?.supersededBy) return "";
   const start = getBookingStart(booking);
   if (!start) return "";
   return [
@@ -458,18 +467,16 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     destroyed: false,
   };
 
+  const isTeacherView = () => !isAdmin || state.filters.alcance === "mine";
+
   /* --------------------- Estructura DOM --------------------- */
 
   container.innerHTML = `
-    <section class="mcal" aria-label="Calendario de reservas Wix">
+    <section class="mcal ${isTeacherView() ? "is-teacher-view" : ""}" aria-label="Calendario de reservas Wix">
       <header class="mcal__header">
         <div class="mcal__title-block">
-          <h2 class="mcal__title">Clases asignadas</h2>
-          <p class="mcal__subtitle">${
-            isAdmin
-              ? "Tus clases asignadas. Cambia a vista admin para ver todo."
-              : "Tus clases asignadas desde Wix"
-          }</p>
+          <h2 class="mcal__title" id="mcal-agenda-title">${isTeacherView() ? "Mi agenda" : "Agenda de clases"}</h2>
+          <p class="mcal__subtitle" id="mcal-agenda-subtitle">${isTeacherView() ? "Tus clases asignadas desde Wix" : "Agenda completa de docentes"}</p>
         </div>
         <div class="mcal__modebar" aria-label="Cambiar vista">
           <button type="button" class="mcal__mode-button is-active" data-mcal-mode="calendar">Calendario</button>
@@ -486,6 +493,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
         <span class="mcal__chip mcal__chip--cancelled">Cancelada</span>
       </div>
       <div class="mcal-updates" id="mcal-updates" hidden></div>
+      <section class="mcal-today" id="mcal-today" aria-live="polite"></section>
       <div class="mcal__calendar" id="mcal-calendar"></div>
       <div class="mcal-rooms" id="mcal-rooms" hidden></div>
       <p class="mcal__empty" id="mcal-empty" hidden>
@@ -612,21 +620,78 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
   const modalEl = container.querySelector("#mcal-modal");
   const modalTitleEl = container.querySelector("#mcal-modal-title");
   const modalBodyEl = container.querySelector("#mcal-modal-body");
+  const todayEl = container.querySelector("#mcal-today");
 
   /* --------------------- FullCalendar ----------------------- */
 
   const isMobile = window.matchMedia("(max-width: 768px)").matches;
 
+  // Resalta el encabezado del día actual cuando se muestra la vista Lista.
+  function highlightTodayInList() {
+    if (!state.calendar?.view?.type?.startsWith("list")) return;
+
+    const today = new Date();
+    const todayKey = [
+      today.getFullYear(),
+      String(today.getMonth() + 1).padStart(2, "0"),
+      String(today.getDate()).padStart(2, "0"),
+    ].join("-");
+
+    calendarEl.querySelectorAll(".fc-list-day[data-date]").forEach((day) => {
+      const isToday = day.dataset.date === todayKey;
+      day.classList.toggle("mcal-list-day--today", isToday);
+      if (!isToday || day.querySelector(".mcal-list-day__today-label")) return;
+
+      const cushion = day.querySelector(".fc-list-day-cushion");
+      if (!cushion) return;
+      const label = document.createElement("span");
+      label.className = "mcal-list-day__today-label";
+      label.textContent = isAdmin ? "Clases de hoy" : "Mis clases de hoy";
+      cushion.prepend(label);
+    });
+  }
+
+  function updateAgendaTabs() {
+    const viewType = state.calendar?.view?.type || "";
+    const active = viewType === "listDay"
+      ? "agendaToday"
+      : viewType === "listWeek"
+        ? "agendaWeek"
+        : "agendaMonth";
+    ["agendaToday", "agendaWeek", "agendaMonth"].forEach((name) => {
+      calendarEl.querySelector(`.fc-${name}-button`)?.classList.toggle("mcal-agenda-tab--active", name === active);
+    });
+  }
+
   state.calendar = new FullCalendar.Calendar(calendarEl, {
     locale: "es",
-    initialView: isAdmin && !isMobile ? "timeGridWeek" : "listWeek",
+    /* La agenda siempre abre como una lista de "Hoy". Semana y Mes siguen
+       disponibles como pestañas, pero la primera pantalla prioriza lo que se
+       necesita atender ahora. */
+    initialView: "listDay",
     headerToolbar: {
-      left: "prev,next today",
+      left: "prev,next",
       center: "title",
-      right: "dayGridMonth,timeGridWeek,timeGridDay,listWeek",
+      right: "agendaToday,agendaWeek,agendaMonth",
+    },
+    customButtons: {
+      agendaToday: {
+        text: "Hoy",
+        click() {
+          state.calendar.changeView("listDay");
+          state.calendar.gotoDate(new Date());
+        },
+      },
+      agendaWeek: {
+        text: "Semana",
+        click() { state.calendar.changeView("listWeek"); },
+      },
+      agendaMonth: {
+        text: "Mes",
+        click() { state.calendar.changeView("dayGridMonth"); },
+      },
     },
     buttonText: {
-      today: "Hoy",
       month: "Mes",
       week: "Semana",
       day: "Día",
@@ -648,6 +713,15 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     // re-consultamos Firestore SOLO para ese rango.
     datesSet(info) {
       subscribeToRange(info.start, info.end);
+      requestAnimationFrame(highlightTodayInList);
+      requestAnimationFrame(updateAgendaTabs);
+    },
+
+    eventDidMount(info) {
+      highlightTodayInList();
+      const props = info.event.extendedProps || {};
+      info.el.style.setProperty("--mcal-event-accent", props.accentColor || DEFAULT_ACCENT);
+      info.el.style.setProperty("--mcal-event-tint", getAgendaTint(props.staffEmail || props.staffName || props.serviceName));
     },
 
     eventClick(info) {
@@ -674,25 +748,40 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
           ? `<span class="mcal-ev__tag">Bloqueado</span> `
           : "";
       const roomName = p.roomAssignment?.roomName;
+      const dot = !cancelled && p.accentColor
+        ? `<span class="mcal-ev__dot" style="background:${escapeHTML(p.accentColor)}"></span>`
+        : "";
       let extra;
       if (isMobile) {
-        // En el celular (docente) mostramos la info clave separada: salón,
-        // modalidad y estado (si no es confirmada) como etiquetas.
-        const bits = [];
-        if (roomName) bits.push(`<span class="mcal-ev__meta mcal-ev__meta--room">${escapeHTML(roomName)}</span>`);
-        if (p.modality) bits.push(`<span class="mcal-ev__meta mcal-ev__meta--modality">${escapeHTML(p.modality)}</span>`);
-        if (["pending", "rescheduled", "updated"].includes(p.statusKey)) {
-          bits.push(`<span class="mcal-ev__meta mcal-ev__meta--status is-${p.statusKey}">${escapeHTML(STATUS_LABELS[p.statusKey] || "")}</span>`);
-        }
-        extra = bits.length ? `<span class="mcal-ev__metarow">${bits.join("")}</span>` : "";
+        // En el celular (docente) la fila es una tarjeta tipo agenda: título,
+        // salón/modalidad, estudiantes visibles de una vez y estado como chip.
+        const subBits = [roomName, p.modality].filter(Boolean);
+        const sub = subBits.length
+          ? `<span class="mcal-ev__sub">${escapeHTML(subBits.join(" · "))}</span>`
+          : "";
+        const names = p.isGroup && Array.isArray(p.participants)
+          ? uniqueParticipants(p.participants).map((x) => x?.name).filter(Boolean)
+          : [p.customerName].filter(Boolean);
+        const students = names.length
+          ? `<span class="mcal-ev__students">${names.length > 1 ? `${names.length} estudiantes · ` : ""}${escapeHTML(names.join(", "))}</span>`
+          : "";
+        const chip = `<span class="mcal-ev__meta mcal-ev__meta--status is-${p.statusKey}">${escapeHTML(STATUS_LABELS[p.statusKey] || p.statusKey || "")}</span>`;
+        return {
+          html: `
+            <div class="mcal-ev mcal-ev--card">
+              <span class="mcal-ev__top">${dot}${time}</span>
+              <span class="mcal-ev__main">${blocked ? prefix : ""}${escapeHTML(p.serviceName || "Clase")}</span>
+              ${sub}
+              ${students}
+              <span class="mcal-ev__metarow">${chip}</span>
+              <span class="mcal-ev__chevron" aria-hidden="true">›</span>
+            </div>`,
+        };
       } else {
         extra = roomName || p.modality
           ? `<span class="mcal-ev__meta">${escapeHTML(roomName || p.modality)}</span>`
           : "";
       }
-      const dot = !cancelled && p.accentColor
-        ? `<span class="mcal-ev__dot" style="background:${escapeHTML(p.accentColor)}"></span>`
-        : "";
       return {
         html: `
           <div class="mcal-ev">
@@ -955,6 +1044,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
 
     state.calendar.removeAllEvents();
     state.calendar.addEventSource(events);
+    renderTodayOverview(events);
     renderRoomsView();
     emptyEl.hidden = events.length > 0;
     if (events.length === 0) {
@@ -1542,14 +1632,33 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       }
     }
 
+    updateTeacherPresentation();
+
     if (previousScope !== state.filters.alcance && state.calendar) {
       state.currentRangeKey = "";
-      const view = state.calendar.view;
-      subscribeToRange(view.activeStart, view.activeEnd);
+      setDisplayMode("calendar");
+      if (isTeacherView()) {
+        state.calendar.changeView("listDay");
+        state.calendar.gotoDate(new Date());
+      } else {
+        state.calendar.changeView(isMobile ? "listDay" : "timeGridWeek");
+      }
       return;
     }
 
     renderEvents();
+  }
+
+  function updateTeacherPresentation() {
+    const teacherView = isTeacherView();
+    const root = container.querySelector(".mcal");
+    root?.classList.toggle("is-teacher-view", teacherView);
+    const title = container.querySelector("#mcal-agenda-title");
+    const subtitle = container.querySelector("#mcal-agenda-subtitle");
+    if (title) title.textContent = teacherView ? "Mi agenda" : "Agenda de clases";
+    if (subtitle) subtitle.textContent = teacherView
+      ? "Tus clases asignadas desde Wix"
+      : "Agenda completa de docentes";
   }
 
   if (isAdmin) {
@@ -1764,8 +1873,12 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
 
       setUploadStatus("Preparando reservas...");
       const result = await importCsvRows(rows);
+      const teacherSummary = result.mappedStaffCounts
+        .filter((item) => ["catalina medina", "alek caballero"].includes(normalizeStaffKey(item.name)))
+        .map((item) => `${item.name}: ${item.count}`)
+        .join(" · ");
       setUploadStatus(
-        `CSV listo: ${result.imported} reservas actualizadas y ${result.deleted} eliminadas. ${result.unmatchedStaffNames.length} docentes sin correo asociado.`
+        `CSV listo: ${result.imported} reservas actualizadas, ${result.reconciled} versiones anteriores retiradas y ${result.deleted} filas CSV antiguas eliminadas.${teacherSummary ? ` ${teacherSummary}.` : ""} ${result.unmatchedStaffNames.length} docentes sin correo asociado.`
       );
 
       if (state.calendar) {
@@ -1919,13 +2032,13 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
 
       const hubEmail = hubUsersByName.get(key);
       if (hubEmail) {
-        entries.set(staffName, hubEmail);
+        entries.set(key, hubEmail);
         return;
       }
 
       const snap = await getDoc(doc(db, "wixStaffMap", key));
       if (snap.exists() && snap.data().staffEmail) {
-        entries.set(staffName, String(snap.data().staffEmail).trim().toLowerCase());
+        entries.set(key, String(snap.data().staffEmail).trim().toLowerCase());
       }
     }));
 
@@ -2323,8 +2436,12 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     let imported = 0;
     let deleted = 0;
     const unmatchedCounts = new Map();
+    const mappedStaffCounts = new Map();
     const incomingBookingIds = new Set();
     const incomingGroupKeys = new Set();
+    const incomingReconciliationKeys = new Map();
+    let firstStart = null;
+    let lastStart = null;
 
     async function commitIfNeeded(force = false) {
       if (batchCount > 0 && (force || batchCount >= CSV_BATCH_SIZE)) {
@@ -2341,11 +2458,22 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       const duration = parseDurationMinutes(row["duracion"]);
       const end = new Date(start.getTime() + duration * 60000);
       const staffName = row["staff name"];
-      const staffEmail = staffEmailMap.get(staffName) || "";
+      const staffEmail = staffEmailMap.get(normalizeStaffKey(staffName)) || "";
       if (!staffEmail) unmatchedCounts.set(staffName, (unmatchedCounts.get(staffName) || 0) + 1);
+      else mappedStaffCounts.set(staffName, (mappedStaffCounts.get(staffName) || 0) + 1);
 
       const bookingId = makeCsvBookingId(row);
       incomingBookingIds.add(bookingId);
+      const studentIdentity = String(row["booking contact email"] || "").trim().toLowerCase() ||
+        normalizeGroupText(row["booking contact name"]);
+      if (studentIdentity) {
+        incomingReconciliationKeys.set(
+          `${Math.floor(start.getTime() / 60000)}|${studentIdentity}`,
+          bookingId
+        );
+      }
+      if (!firstStart || start < firstStart) firstStart = start;
+      if (!lastStart || start > lastStart) lastStart = start;
       incomingGroupKeys.add([
         start.getFullYear(),
         start.getMonth() + 1,
@@ -2384,6 +2512,12 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       await commitIfNeeded();
     }
 
+    await commitIfNeeded(true);
+    const reconciled = await reconcileCsvWithWebhookBookings(
+      incomingReconciliationKeys,
+      firstStart,
+      lastStart
+    );
     deleted = await deleteMissingCsvEmergencyBookings(incomingBookingIds, incomingGroupKeys);
 
     for (const [staffName, count] of unmatchedCounts.entries()) {
@@ -2392,7 +2526,96 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     }
 
     await commitIfNeeded(true);
-    return { imported, deleted, unmatchedStaffNames: [...unmatchedCounts.keys()] };
+    return {
+      imported,
+      reconciled,
+      deleted,
+      unmatchedStaffNames: [...unmatchedCounts.keys()],
+      mappedStaffCounts: [...mappedStaffCounts.entries()].map(([name, count]) => ({ name, count })),
+    };
+  }
+
+  function renderTodayOverview(events) {
+    if (!todayEl) return;
+    const now = new Date();
+    const todayEvents = events.filter((event) => sameLocalDate(new Date(event.start), now));
+    const active = todayEvents.filter((event) => event.extendedProps?.statusKey !== "cancelled");
+    const cancelled = todayEvents.length - active.length;
+    const rescheduled = active.filter((event) => event.extendedProps?.statusKey === "rescheduled");
+    const confirmed = active.filter((event) => event.extendedProps?.statusKey === "confirmed");
+    const label = isAdmin ? "clases programadas hoy" : "clases hoy";
+
+    todayEl.innerHTML = `
+      <div class="mcal-today__headline">
+        <span class="mcal-today__spark">🎉</span>
+        <div>
+          <strong>${active.length ? `Tienes ${active.length} ${label}` : "No tienes clases para hoy"}</strong>
+          <span>${active.length ? "¡Sigue así, gran trabajo!" : "Disfruta el espacio o revisa la Semana."}</span>
+        </div>
+      </div>
+      <div class="mcal-today__stats">
+        <div class="is-confirmed"><strong>${confirmed.length}</strong><span>Confirmadas</span></div>
+        <div class="is-rescheduled"><strong>${rescheduled.length}</strong><span>Reprogramadas</span></div>
+        <div class="is-cancelled"><strong>${cancelled}</strong><span>Canceladas</span></div>
+      </div>`;
+  }
+
+  /* El CSV de Wix es una fotografía actual de las clases. Cuando una
+     reasignación ya había entrado antes por webhook con otro bookingId, la
+     versión vieja (source:wix) quedaba activa porque solo se limpiaban filas
+     de CSV. Aquí la retiramos de forma segura: misma hora/minuto y mismo
+     estudiante, identificándolo por correo o, si falta, por nombre. */
+  async function reconcileCsvWithWebhookBookings(incomingKeys, firstStart, lastStart) {
+    if (!incomingKeys.size || !firstStart || !lastStart) return 0;
+
+    const rangeStart = new Date(firstStart.getTime() - 60000);
+    const rangeEnd = new Date(lastStart.getTime() + 60000);
+    const snap = await getDocs(query(
+      collection(db, COLLECTION_NAME),
+      where("startDate", ">=", Timestamp.fromDate(rangeStart)),
+      where("startDate", "<", Timestamp.fromDate(rangeEnd)),
+      orderBy("startDate", "asc")
+    ));
+
+    let batch = writeBatch(db);
+    let batchCount = 0;
+    let reconciled = 0;
+
+    async function commitIfNeeded(force = false) {
+      if (batchCount > 0 && (force || batchCount >= CSV_BATCH_SIZE)) {
+        await batch.commit();
+        batch = writeBatch(db);
+        batchCount = 0;
+      }
+    }
+
+    for (const docSnap of snap.docs) {
+      const booking = docSnap.data();
+      if (booking.source !== "wix" || normalizeStatus(booking.status) === "cancelled") continue;
+      const start = getBookingStart(booking);
+      if (!start) continue;
+      const studentIdentity = String(booking.customerEmail || "").trim().toLowerCase() ||
+        normalizeGroupText(booking.customerName);
+      if (!studentIdentity) continue;
+
+      const replacementId = incomingKeys.get(`${Math.floor(start.getTime() / 60000)}|${studentIdentity}`);
+      if (!replacementId || replacementId === docSnap.id) continue;
+
+      batch.set(docSnap.ref, {
+        status: "cancelled",
+        supersededByBookingId: replacementId,
+        supersededAt: serverTimestamp(),
+        cancellationReceivedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        supersededBy: "csv-emergency",
+      }, { merge: true });
+      batchCount += 1;
+      reconciled += 1;
+      await commitIfNeeded();
+    }
+
+    await commitIfNeeded(true);
+    return reconciled;
   }
 
   async function deleteMissingCsvEmergencyBookings(incomingBookingIds, incomingGroupKeys) {
@@ -2451,52 +2674,75 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     const groupKey = b.groupKey || getGroupKey(b) || b.bookingId || b._docId;
     const roomAssignment = b.roomAssignment || getAutomaticRoomAssignment(b, groupKey) || state.roomAssignments.get(groupKey);
 
-    modalTitleEl.textContent = b.serviceName || "Detalle de reserva";
+    modalTitleEl.textContent = "Detalle de la clase";
 
+    const participants = b.source === "academic-task"
+      ? []
+      : b.isGroup && Array.isArray(b.participants)
+        ? b.participants
+        : [{
+            name: b.customerName || "Estudiante sin nombre",
+            email: Array.isArray(b.studentEmails) && b.studentEmails.length
+              ? b.studentEmails[0]
+              : b.customerEmail,
+          }];
     const rows = [];
-    const row = (label, value, opts = {}) => {
+    const row = (icon, label, value, opts = {}) => {
       if (value === null || value === undefined || value === "") return;
       rows.push(`
-        <div class="mcal-modal__row${opts.full ? " mcal-modal__row--full" : ""}">
-          <dt>${escapeHTML(label)}</dt>
+        <div class="mcal-modal__row mcal-modal__row--icon${opts.full ? " mcal-modal__row--full" : ""}">
+          <dt aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}">${icon}</dt>
           <dd>${opts.html ? value : escapeHTML(value)}</dd>
         </div>`);
     };
 
-    row("Estado", `<span class="mcal__chip mcal__chip--${statusKey}">${STATUS_LABELS[statusKey]}</span>`, { html: true });
-    row("Estudiante / grupo", b.isGroup ? `${b.groupCount} participantes` : b.customerName);
-    row("Docente", b.staffName || b.staffEmail || "Sin asignar");
-    row("Fecha", start ? start.toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "—");
-    row("Hora inicio", formatTime(start));
-    row("Hora fin", formatTime(end));
-    row("Ubicación", b.location);
-    row("Salón", roomAssignment?.roomName || roomAssignment?.roomLabel || "Sin asignar");
+    row("♙", "Docente", b.staffName || b.staffEmail || "Sin asignar");
+    row("▣", "Fecha", start ? start.toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "—");
+    row("◷", "Horario", `${formatTime(start)} – ${formatTime(end)}`);
+    row("⌂", "Salón", roomAssignment?.roomName || roomAssignment?.roomLabel || "Sin asignar");
+    row("⌖", "Ubicación", b.location);
+    if (participants.length > 1) row("♟", "Participantes", `${participants.length} estudiantes`);
     if (b.source === "academic-task") {
-      row("Bitácora académica", `<a class="mcal-academic-log-link" href="${ACADEMIC_LOG_URL}" target="_blank" rel="noopener noreferrer">Abrir Bitácora Académica</a>`, { full: true, html: true });
+      row("▤", "Bitácora académica", `<a class="mcal-academic-log-link" href="${ACADEMIC_LOG_URL}" target="_blank" rel="noopener noreferrer">Abrir Bitácora Académica</a>`, { full: true, html: true });
       if (isAdmin) {
-        row("Administrar", `<button type="button" class="mcal-academic-task-delete" data-academic-task-delete data-booking-id="${escapeHTML(b.bookingId || b._docId || "")}" data-group-key="${escapeHTML(groupKey)}">Eliminar tarea académica</button><span class="mcal-room-assign__status" data-academic-delete-status></span>`, { full: true, html: true });
+        row("⚙", "Administrar", `<button type="button" class="mcal-academic-task-delete" data-academic-task-delete data-booking-id="${escapeHTML(b.bookingId || b._docId || "")}" data-group-key="${escapeHTML(groupKey)}">Eliminar tarea académica</button><span class="mcal-room-assign__status" data-academic-delete-status></span>`, { full: true, html: true });
       }
     }
-    if (b.participantsCount !== undefined && b.participantsCount !== null) {
-      row("Participantes", String(b.isGroup ? b.groupCount : b.participantsCount));
-    }
-    if (b.source === "academic-task") {
-      // Las tareas academicas pertenecen al docente, no a un estudiante.
-    } else if (b.isGroup && Array.isArray(b.participants)) {
-      row("Lista de participantes", renderParticipantsList(b.participants), { full: true, html: true });
-    } else {
-      row("Acceso del estudiante", renderStudentActions({
-        email: Array.isArray(b.studentEmails) && b.studentEmails.length
-          ? b.studentEmails[0]
-          : b.customerEmail,
-      }), { full: true, html: true });
-    }
-    row("Última actualización", formatDateTime(updatedAt));
+    row("↻", "Última actualización", formatDateTime(updatedAt));
     if (isAdmin && !roomAssignment?.automatic) {
-      row("Asignar salón", renderRoomAssignmentControl(b, groupKey, roomAssignment), { full: true, html: true });
+      row("⌂", "Asignar salón", renderRoomAssignmentControl(b, groupKey, roomAssignment), { full: true, html: true });
     }
 
-    modalBodyEl.innerHTML = `<dl class="mcal-modal__grid">${rows.join("")}</dl>`;
+    const participantsTitle = participants.length === 1 ? "Participante" : `Participantes · ${participants.length}`;
+    const dateLabel = start
+      ? start.toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long" })
+      : "Fecha por confirmar";
+
+    modalBodyEl.innerHTML = `
+      <section class="mcal-class-detail">
+        <header class="mcal-class-detail__hero">
+          <div class="mcal-class-detail__eyebrow">
+            <span class="mcal__chip mcal__chip--${statusKey}">${STATUS_LABELS[statusKey]}</span>
+            <span>${escapeHTML(dateLabel)}</span>
+          </div>
+          <h4>${escapeHTML(b.serviceName || "Clase")}</h4>
+          <p>${escapeHTML(formatTime(start))} – ${escapeHTML(formatTime(end))} · ${escapeHTML(roomAssignment?.roomName || roomAssignment?.roomLabel || b.location || "Ubicación por confirmar")}</p>
+        </header>
+        ${participants.length ? `
+          <section class="mcal-class-detail__section mcal-class-detail__participants">
+            <div class="mcal-class-detail__section-heading">
+              <h5>${escapeHTML(participantsTitle)}</h5>
+              <span>Perfil y bitácoras disponibles</span>
+            </div>
+            ${renderParticipantsList(participants)}
+          </section>` : ""}
+        <section class="mcal-class-detail__section">
+          <div class="mcal-class-detail__section-heading">
+            <h5>Detalles de la clase</h5>
+          </div>
+          <dl class="mcal-modal__grid">${rows.join("")}</dl>
+        </section>
+      </section>`;
     modalEl.hidden = false;
     document.addEventListener("keydown", onEscClose);
   }
