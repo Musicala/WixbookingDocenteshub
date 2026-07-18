@@ -642,16 +642,47 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     });
   }
 
+  function updateAgendaTabs() {
+    const viewType = state.calendar?.view?.type || "";
+    const active = viewType === "listDay"
+      ? "agendaToday"
+      : viewType === "listWeek"
+        ? "agendaWeek"
+        : "agendaMonth";
+    ["agendaToday", "agendaWeek", "agendaMonth"].forEach((name) => {
+      calendarEl.querySelector(`.fc-${name}-button`)?.classList.toggle("mcal-agenda-tab--active", name === active);
+    });
+  }
+
   state.calendar = new FullCalendar.Calendar(calendarEl, {
     locale: "es",
-    initialView: isAdmin && !isMobile ? "timeGridWeek" : "listWeek",
+    /* La agenda siempre abre como una lista de "Hoy". Semana y Mes siguen
+       disponibles como pestañas, pero la primera pantalla prioriza lo que se
+       necesita atender ahora. */
+    initialView: "listDay",
     headerToolbar: {
-      left: "prev,next today",
+      left: "prev,next",
       center: "title",
-      right: "dayGridMonth,timeGridWeek,timeGridDay,listWeek",
+      right: "agendaToday,agendaWeek,agendaMonth",
+    },
+    customButtons: {
+      agendaToday: {
+        text: "Hoy",
+        click() {
+          state.calendar.changeView("listDay");
+          state.calendar.gotoDate(new Date());
+        },
+      },
+      agendaWeek: {
+        text: "Semana",
+        click() { state.calendar.changeView("listWeek"); },
+      },
+      agendaMonth: {
+        text: "Mes",
+        click() { state.calendar.changeView("dayGridMonth"); },
+      },
     },
     buttonText: {
-      today: "Hoy",
       month: "Mes",
       week: "Semana",
       day: "Día",
@@ -674,6 +705,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     datesSet(info) {
       subscribeToRange(info.start, info.end);
       requestAnimationFrame(highlightTodayInList);
+      requestAnimationFrame(updateAgendaTabs);
     },
 
     eventDidMount() {
@@ -2558,7 +2590,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     const groupKey = b.groupKey || getGroupKey(b) || b.bookingId || b._docId;
     const roomAssignment = b.roomAssignment || getAutomaticRoomAssignment(b, groupKey) || state.roomAssignments.get(groupKey);
 
-    modalTitleEl.textContent = b.serviceName || "Detalle de reserva";
+    modalTitleEl.textContent = "Detalle de la clase";
 
     const rows = [];
     const row = (label, value, opts = {}) => {
@@ -2570,12 +2602,9 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
         </div>`);
     };
 
-    row("Estado", `<span class="mcal__chip mcal__chip--${statusKey}">${STATUS_LABELS[statusKey]}</span>`, { html: true });
-    row("Estudiante / grupo", b.isGroup ? `${b.groupCount} participantes` : b.customerName);
     row("Docente", b.staffName || b.staffEmail || "Sin asignar");
     row("Fecha", start ? start.toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "—");
-    row("Hora inicio", formatTime(start));
-    row("Hora fin", formatTime(end));
+    row("Horario", `${formatTime(start)} – ${formatTime(end)}`);
     row("Ubicación", b.location);
     row("Salón", roomAssignment?.roomName || roomAssignment?.roomLabel || "Sin asignar");
     if (b.source === "academic-task") {
@@ -2584,26 +2613,51 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
         row("Administrar", `<button type="button" class="mcal-academic-task-delete" data-academic-task-delete data-booking-id="${escapeHTML(b.bookingId || b._docId || "")}" data-group-key="${escapeHTML(groupKey)}">Eliminar tarea académica</button><span class="mcal-room-assign__status" data-academic-delete-status></span>`, { full: true, html: true });
       }
     }
-    if (b.participantsCount !== undefined && b.participantsCount !== null) {
-      row("Participantes", String(b.isGroup ? b.groupCount : b.participantsCount));
-    }
-    if (b.source === "academic-task") {
-      // Las tareas academicas pertenecen al docente, no a un estudiante.
-    } else if (b.isGroup && Array.isArray(b.participants)) {
-      row("Lista de participantes", renderParticipantsList(b.participants), { full: true, html: true });
-    } else {
-      row("Acceso del estudiante", renderStudentActions({
-        email: Array.isArray(b.studentEmails) && b.studentEmails.length
-          ? b.studentEmails[0]
-          : b.customerEmail,
-      }), { full: true, html: true });
-    }
     row("Última actualización", formatDateTime(updatedAt));
     if (isAdmin && !roomAssignment?.automatic) {
       row("Asignar salón", renderRoomAssignmentControl(b, groupKey, roomAssignment), { full: true, html: true });
     }
 
-    modalBodyEl.innerHTML = `<dl class="mcal-modal__grid">${rows.join("")}</dl>`;
+    const participants = b.source === "academic-task"
+      ? []
+      : b.isGroup && Array.isArray(b.participants)
+        ? b.participants
+        : [{
+            name: b.customerName || "Estudiante sin nombre",
+            email: Array.isArray(b.studentEmails) && b.studentEmails.length
+              ? b.studentEmails[0]
+              : b.customerEmail,
+          }];
+    const participantsTitle = participants.length === 1 ? "Participante" : `Participantes · ${participants.length}`;
+    const dateLabel = start
+      ? start.toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long" })
+      : "Fecha por confirmar";
+
+    modalBodyEl.innerHTML = `
+      <section class="mcal-class-detail">
+        <header class="mcal-class-detail__hero">
+          <div class="mcal-class-detail__eyebrow">
+            <span class="mcal__chip mcal__chip--${statusKey}">${STATUS_LABELS[statusKey]}</span>
+            <span>${escapeHTML(dateLabel)}</span>
+          </div>
+          <h4>${escapeHTML(b.serviceName || "Clase")}</h4>
+          <p>${escapeHTML(formatTime(start))} – ${escapeHTML(formatTime(end))} · ${escapeHTML(roomAssignment?.roomName || roomAssignment?.roomLabel || b.location || "Ubicación por confirmar")}</p>
+        </header>
+        ${participants.length ? `
+          <section class="mcal-class-detail__section mcal-class-detail__participants">
+            <div class="mcal-class-detail__section-heading">
+              <h5>${escapeHTML(participantsTitle)}</h5>
+              <span>Perfil y bitácoras disponibles</span>
+            </div>
+            ${renderParticipantsList(participants)}
+          </section>` : ""}
+        <section class="mcal-class-detail__section">
+          <div class="mcal-class-detail__section-heading">
+            <h5>Detalles de la clase</h5>
+          </div>
+          <dl class="mcal-modal__grid">${rows.join("")}</dl>
+        </section>
+      </section>`;
     modalEl.hidden = false;
     document.addEventListener("keydown", onEscClose);
   }

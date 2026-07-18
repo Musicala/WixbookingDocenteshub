@@ -1485,6 +1485,85 @@
 
 .mcal-modal__body { padding: 1rem 1.25rem 1.4rem; }
 
+/* Detalle de clase: una jerarquía más amable en móvil, con los participantes
+   y sus acciones antes de los datos secundarios. */
+.mcal-class-detail {
+  display: grid;
+  gap: 1rem;
+}
+
+.mcal-class-detail__hero {
+  padding: 1.1rem;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #f4efff, #effbfb);
+  border: 1px solid #e3dafe;
+}
+
+.mcal-class-detail__eyebrow,
+.mcal-class-detail__section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.mcal-class-detail__eyebrow {
+  color: #68617c;
+  font-size: 0.76rem;
+  text-transform: capitalize;
+}
+
+.mcal-class-detail__hero h4 {
+  margin: 0.7rem 0 0.3rem;
+  color: var(--bach, #220a63);
+  font-size: 1.2rem;
+  line-height: 1.2;
+}
+
+.mcal-class-detail__hero p {
+  margin: 0;
+  color: #58516e;
+  font-size: 0.86rem;
+}
+
+.mcal-class-detail__section {
+  padding: 0.1rem 0;
+}
+
+.mcal-class-detail__section-heading {
+  margin-bottom: 0.6rem;
+}
+
+.mcal-class-detail__section-heading h5 {
+  margin: 0;
+  color: var(--bach, #220a63);
+  font-size: 0.94rem;
+}
+
+.mcal-class-detail__section-heading span {
+  color: #777187;
+  font-size: 0.72rem;
+}
+
+/* Pestañas compactas de la agenda: Hoy, Semana y Mes. */
+.mcal .fc .fc-agendaToday-button,
+.mcal .fc .fc-agendaWeek-button,
+.mcal .fc .fc-agendaMonth-button {
+  border-radius: 999px;
+  border-color: #e5e1ef;
+  background: #fff;
+  color: #5f5873;
+  box-shadow: none;
+}
+
+.mcal .fc .fc-agendaToday-button.mcal-agenda-tab--active,
+.mcal .fc .fc-agendaWeek-button.mcal-agenda-tab--active,
+.mcal .fc .fc-agendaMonth-button.mcal-agenda-tab--active {
+  background: var(--mcal-primary, #0d9f9a);
+  border-color: var(--mcal-primary, #0d9f9a);
+  color: #fff;
+}
+
 .mcal-modal__grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1525,7 +1604,7 @@
   gap: 12px;
   border: 1px solid var(--haydn, #e6e8e8);
   border-radius: 8px;
-  padding: 0.55rem;
+  padding: 0.75rem;
 }
 
 .mcal-participants strong,
