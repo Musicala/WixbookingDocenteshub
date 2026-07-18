@@ -399,6 +399,10 @@ function classifyRoomCategory({ serviceName, participantsCount, modality, staffN
 }
 
 function getBookingCancellationMatchKey(booking) {
+  /* Una cancelada que fue reemplazada por una reasignación o por el CSV no
+     representa una cancelación vigente. Si la usamos como llave para ocultar,
+     tapa precisamente la nueva versión correcta de la clase. */
+  if (booking?.supersededByBookingId || booking?.supersededBy) return "";
   const start = getBookingStart(booking);
   if (!start) return "";
   return [
