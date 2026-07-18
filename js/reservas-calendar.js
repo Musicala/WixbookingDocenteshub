@@ -1795,7 +1795,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       setUploadStatus("Preparando reservas...");
       const result = await importCsvRows(rows);
       setUploadStatus(
-        `CSV listo: ${result.imported} reservas actualizadas y ${result.deleted} eliminadas. ${result.unmatchedStaffNames.length} docentes sin correo asociado.`
+        `CSV listo: ${result.imported} reservas actualizadas, ${result.reconciled} versiones anteriores retiradas y ${result.deleted} filas CSV antiguas eliminadas. ${result.unmatchedStaffNames.length} docentes sin correo asociado.`
       );
 
       if (state.calendar) {
@@ -2355,6 +2355,9 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     const unmatchedCounts = new Map();
     const incomingBookingIds = new Set();
     const incomingGroupKeys = new Set();
+    const incomingReconciliationKeys = new Map();
+    let firstStart = null;
+    let lastStart = null;
 
     async function commitIfNeeded(force = false) {
       if (batchCount > 0 && (force || batchCount >= CSV_BATCH_SIZE)) {
@@ -2376,6 +2379,16 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
 
       const bookingId = makeCsvBookingId(row);
       incomingBookingIds.add(bookingId);
+      const studentIdentity = String(row["booking contact email"] || "").trim().toLowerCase() ||
+        normalizeGroupText(row["booking contact name"]);
+      if (studentIdentity) {
+        incomingReconciliationKeys.set(
+          `${Math.floor(start.getTime() / 60000)}|${studentIdentity}`,
+          bookingId
+        );
+      }
+      if (!firstStart || start < firstStart) firstStart = start;
+      if (!lastStart || start > lastStart) lastStart = start;
       incomingGroupKeys.add([
         start.getFullYear(),
         start.getMonth() + 1,
@@ -2414,6 +2427,12 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       await commitIfNeeded();
     }
 
+    await commitIfNeeded(true);
+    const reconciled = await reconcileCsvWithWebhookBookings(
+      incomingReconciliationKeys,
+      firstStart,
+      lastStart
+    );
     deleted = await deleteMissingCsvEmergencyBookings(incomingBookingIds, incomingGroupKeys);
 
     for (const [staffName, count] of unmatchedCounts.entries()) {
@@ -2422,7 +2441,65 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     }
 
     await commitIfNeeded(true);
-    return { imported, deleted, unmatchedStaffNames: [...unmatchedCounts.keys()] };
+    return { imported, reconciled, deleted, unmatchedStaffNames: [...unmatchedCounts.keys()] };
+  }
+
+  /* El CSV de Wix es una fotografía actual de las clases. Cuando una
+     reasignación ya había entrado antes por webhook con otro bookingId, la
+     versión vieja (source:wix) quedaba activa porque solo se limpiaban filas
+     de CSV. Aquí la retiramos de forma segura: misma hora/minuto y mismo
+     estudiante, identificándolo por correo o, si falta, por nombre. */
+  async function reconcileCsvWithWebhookBookings(incomingKeys, firstStart, lastStart) {
+    if (!incomingKeys.size || !firstStart || !lastStart) return 0;
+
+    const rangeStart = new Date(firstStart.getTime() - 60000);
+    const rangeEnd = new Date(lastStart.getTime() + 60000);
+    const snap = await getDocs(query(
+      collection(db, COLLECTION_NAME),
+      where("startDate", ">=", Timestamp.fromDate(rangeStart)),
+      where("startDate", "<", Timestamp.fromDate(rangeEnd)),
+      orderBy("startDate", "asc")
+    ));
+
+    let batch = writeBatch(db);
+    let batchCount = 0;
+    let reconciled = 0;
+
+    async function commitIfNeeded(force = false) {
+      if (batchCount > 0 && (force || batchCount >= CSV_BATCH_SIZE)) {
+        await batch.commit();
+        batch = writeBatch(db);
+        batchCount = 0;
+      }
+    }
+
+    for (const docSnap of snap.docs) {
+      const booking = docSnap.data();
+      if (booking.source !== "wix" || normalizeStatus(booking.status) === "cancelled") continue;
+      const start = getBookingStart(booking);
+      if (!start) continue;
+      const studentIdentity = String(booking.customerEmail || "").trim().toLowerCase() ||
+        normalizeGroupText(booking.customerName);
+      if (!studentIdentity) continue;
+
+      const replacementId = incomingKeys.get(`${Math.floor(start.getTime() / 60000)}|${studentIdentity}`);
+      if (!replacementId || replacementId === docSnap.id) continue;
+
+      batch.set(docSnap.ref, {
+        status: "cancelled",
+        supersededByBookingId: replacementId,
+        supersededAt: serverTimestamp(),
+        cancellationReceivedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        supersededBy: "csv-emergency",
+      }, { merge: true });
+      batchCount += 1;
+      reconciled += 1;
+      await commitIfNeeded();
+    }
+
+    await commitIfNeeded(true);
+    return reconciled;
   }
 
   async function deleteMissingCsvEmergencyBookings(incomingBookingIds, incomingGroupKeys) {
