@@ -162,6 +162,7 @@ const STAFF_PALETTE = [
   "#8a1c5a", // vino
   "#7a4b00", // ámbar oscuro
 ];
+const AGENDA_TINTS = ["#fff0f5", "#f2efff", "#ecfbfb", "#fff5ea", "#eef6ff"];
 
 // Color por instrumento/servicio (vista docente). El primer grupo de
 // palabras que aparezca en el nombre del servicio define el color.
@@ -212,6 +213,10 @@ function getStaffColor(staffKey) {
   const key = normalizeForMatch(staffKey);
   if (!key) return "#8a8a98";
   return STAFF_PALETTE[hashString(key) % STAFF_PALETTE.length];
+}
+
+function getAgendaTint(key) {
+  return AGENDA_TINTS[hashString(key) % AGENDA_TINTS.length];
 }
 
 function humanFirestorePermissionError(error) {
@@ -712,8 +717,11 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       requestAnimationFrame(updateAgendaTabs);
     },
 
-    eventDidMount() {
+    eventDidMount(info) {
       highlightTodayInList();
+      const props = info.event.extendedProps || {};
+      info.el.style.setProperty("--mcal-event-accent", props.accentColor || DEFAULT_ACCENT);
+      info.el.style.setProperty("--mcal-event-tint", getAgendaTint(props.staffEmail || props.staffName || props.serviceName));
     },
 
     eventClick(info) {

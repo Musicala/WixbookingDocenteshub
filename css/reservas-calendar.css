@@ -2134,10 +2134,15 @@
 
 @media (max-width: 768px) {
   .mcal { padding: 0.6rem 0.6rem 1rem; border-radius: 0; }
+  .mcal.is-teacher-view { padding: 0.35rem 0.7rem 1.2rem; border-radius: 0; }
 
-  .mcal__header { padding: 0.7rem 0.35rem; }
+  .mcal.is-teacher-view .mcal__header {
+    padding: 0.55rem 0.2rem 0.35rem;
+    border: 0;
+  }
 
-  .mcal__title { font-size: 1.15rem; }
+  .mcal.is-teacher-view .mcal__title { font-size: 1.02rem; }
+  .mcal.is-teacher-view .mcal__subtitle { display: none; }
 
   /* Leyenda deslizable en una sola línea, sin ocupar pantalla */
   .mcal__legend {
@@ -2163,6 +2168,57 @@
   /* Filas de lista más cómodas al tacto */
   .mcal .fc-list-event td { padding: 0.7rem 0.6rem; }
 
+  /* Las filas se convierten en tarjetas de agenda: hora a la izquierda y
+     clase en un bloque pastel con acento estable por docente/servicio. */
+  .mcal.is-teacher-view .fc .fc-list-table {
+    border-spacing: 0 0.48rem;
+  }
+
+  .mcal.is-teacher-view .fc .fc-list-event td.fc-list-event-time {
+    width: 3.1rem;
+    padding: 0.7rem 0.38rem 0.2rem 0;
+    background: transparent !important;
+    border: 0 !important;
+    color: #59536a;
+    font-size: 0.68rem;
+    font-weight: 800;
+    line-height: 1.15;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .mcal.is-teacher-view .fc .fc-list-event td.fc-list-event-graphic,
+  .mcal.is-teacher-view .fc .fc-list-event td.fc-list-event-title {
+    background: var(--mcal-event-tint, #f5f2ff) !important;
+    border-color: transparent !important;
+  }
+
+  .mcal.is-teacher-view .fc .fc-list-event td.fc-list-event-graphic {
+    width: 0.9rem;
+    padding: 0.7rem 0 0.7rem 0.45rem;
+    border-left: 3px solid var(--mcal-event-accent, #5729ff) !important;
+    border-radius: 11px 0 0 11px;
+  }
+
+  .mcal.is-teacher-view .fc .fc-list-event td.fc-list-event-title {
+    padding: 0.62rem 0.7rem 0.62rem 0.38rem;
+    border-radius: 0 11px 11px 0;
+  }
+
+  .mcal.is-teacher-view .fc .fc-list-event:hover td.fc-list-event-graphic,
+  .mcal.is-teacher-view .fc .fc-list-event:hover td.fc-list-event-title {
+    filter: brightness(0.98);
+  }
+
+  .mcal.is-teacher-view .fc .fc-list-event-dot {
+    border-color: var(--mcal-event-accent, #5729ff);
+  }
+
+  .mcal.is-teacher-view .mcal-ev { gap: 0.18rem; padding: 0; }
+  .mcal.is-teacher-view .mcal-ev__top { display: none; }
+  .mcal.is-teacher-view .mcal-ev__main { font-size: 0.8rem; line-height: 1.25; }
+  .mcal.is-teacher-view .mcal-ev__meta { font-size: 0.67rem; }
+
   /* Salón, modalidad y estado como fila de etiquetas legibles: es la info
      clave para el docente en la vista lista del celular. */
   .mcal .fc-list-event .mcal-ev__metarow {
@@ -2171,6 +2227,25 @@
     gap: 5px;
     margin-top: 4px;
   }
+
+  .mcal.is-teacher-view .mcal-today {
+    margin: 0.25rem 0 0.7rem;
+    padding: 0.8rem;
+    border-radius: 13px;
+  }
+
+  .mcal.is-teacher-view .mcal-today__spark {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 9px;
+    font-size: 0.9rem;
+  }
+
+  .mcal.is-teacher-view .mcal-today__headline strong { font-size: 0.82rem; }
+  .mcal.is-teacher-view .mcal-today__headline span { font-size: 0.66rem; }
+  .mcal.is-teacher-view .mcal-today__stats { gap: 0.45rem; }
+  .mcal.is-teacher-view .mcal-today__stats strong { font-size: 0.92rem; }
+  .mcal.is-teacher-view .mcal-today__stats span { font-size: 0.57rem; }
 
   .mcal .fc-list-event .mcal-ev__meta {
     display: inline-block;
