@@ -1846,8 +1846,12 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
 
       setUploadStatus("Preparando reservas...");
       const result = await importCsvRows(rows);
+      const teacherSummary = result.mappedStaffCounts
+        .filter((item) => ["catalina medina", "alek caballero"].includes(normalizeStaffKey(item.name)))
+        .map((item) => `${item.name}: ${item.count}`)
+        .join(" · ");
       setUploadStatus(
-        `CSV listo: ${result.imported} reservas actualizadas, ${result.reconciled} versiones anteriores retiradas y ${result.deleted} filas CSV antiguas eliminadas. ${result.unmatchedStaffNames.length} docentes sin correo asociado.`
+        `CSV listo: ${result.imported} reservas actualizadas, ${result.reconciled} versiones anteriores retiradas y ${result.deleted} filas CSV antiguas eliminadas.${teacherSummary ? ` ${teacherSummary}.` : ""} ${result.unmatchedStaffNames.length} docentes sin correo asociado.`
       );
 
       if (state.calendar) {
@@ -2001,13 +2005,13 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
 
       const hubEmail = hubUsersByName.get(key);
       if (hubEmail) {
-        entries.set(staffName, hubEmail);
+        entries.set(key, hubEmail);
         return;
       }
 
       const snap = await getDoc(doc(db, "wixStaffMap", key));
       if (snap.exists() && snap.data().staffEmail) {
-        entries.set(staffName, String(snap.data().staffEmail).trim().toLowerCase());
+        entries.set(key, String(snap.data().staffEmail).trim().toLowerCase());
       }
     }));
 
@@ -2405,6 +2409,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     let imported = 0;
     let deleted = 0;
     const unmatchedCounts = new Map();
+    const mappedStaffCounts = new Map();
     const incomingBookingIds = new Set();
     const incomingGroupKeys = new Set();
     const incomingReconciliationKeys = new Map();
@@ -2426,8 +2431,9 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       const duration = parseDurationMinutes(row["duracion"]);
       const end = new Date(start.getTime() + duration * 60000);
       const staffName = row["staff name"];
-      const staffEmail = staffEmailMap.get(staffName) || "";
+      const staffEmail = staffEmailMap.get(normalizeStaffKey(staffName)) || "";
       if (!staffEmail) unmatchedCounts.set(staffName, (unmatchedCounts.get(staffName) || 0) + 1);
+      else mappedStaffCounts.set(staffName, (mappedStaffCounts.get(staffName) || 0) + 1);
 
       const bookingId = makeCsvBookingId(row);
       incomingBookingIds.add(bookingId);
@@ -2493,7 +2499,13 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     }
 
     await commitIfNeeded(true);
-    return { imported, reconciled, deleted, unmatchedStaffNames: [...unmatchedCounts.keys()] };
+    return {
+      imported,
+      reconciled,
+      deleted,
+      unmatchedStaffNames: [...unmatchedCounts.keys()],
+      mappedStaffCounts: [...mappedStaffCounts.entries()].map(([name, count]) => ({ name, count })),
+    };
   }
 
   function renderTodayOverview(events) {
