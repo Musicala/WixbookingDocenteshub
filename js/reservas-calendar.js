@@ -464,7 +464,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     <section class="mcal" aria-label="Calendario de reservas Wix">
       <header class="mcal__header">
         <div class="mcal__title-block">
-          <h2 class="mcal__title">Clases asignadas</h2>
+          <h2 class="mcal__title">${isAdmin ? "Agenda de clases" : "Mi agenda"}</h2>
           <p class="mcal__subtitle">${
             isAdmin
               ? "Tus clases asignadas. Cambia a vista admin para ver todo."
@@ -486,6 +486,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
         <span class="mcal__chip mcal__chip--cancelled">Cancelada</span>
       </div>
       <div class="mcal-updates" id="mcal-updates" hidden></div>
+      <section class="mcal-today" id="mcal-today" aria-live="polite"></section>
       <div class="mcal__calendar" id="mcal-calendar"></div>
       <div class="mcal-rooms" id="mcal-rooms" hidden></div>
       <p class="mcal__empty" id="mcal-empty" hidden>
@@ -612,6 +613,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
   const modalEl = container.querySelector("#mcal-modal");
   const modalTitleEl = container.querySelector("#mcal-modal-title");
   const modalBodyEl = container.querySelector("#mcal-modal-body");
+  const todayEl = container.querySelector("#mcal-today");
 
   /* --------------------- FullCalendar ----------------------- */
 
@@ -1017,6 +1019,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
 
     state.calendar.removeAllEvents();
     state.calendar.addEventSource(events);
+    renderTodayOverview(events);
     renderRoomsView();
     emptyEl.hidden = events.length > 0;
     if (events.length === 0) {
@@ -2474,6 +2477,30 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
 
     await commitIfNeeded(true);
     return { imported, reconciled, deleted, unmatchedStaffNames: [...unmatchedCounts.keys()] };
+  }
+
+  function renderTodayOverview(events) {
+    if (!todayEl) return;
+    const now = new Date();
+    const todayEvents = events.filter((event) => sameLocalDate(new Date(event.start), now));
+    const active = todayEvents.filter((event) => event.extendedProps?.statusKey !== "cancelled");
+    const pending = active.filter((event) => event.extendedProps?.statusKey === "pending");
+    const confirmed = active.filter((event) => event.extendedProps?.statusKey === "confirmed");
+    const label = isAdmin ? "clases programadas hoy" : "clases para hoy";
+
+    todayEl.innerHTML = `
+      <div class="mcal-today__headline">
+        <span class="mcal-today__spark">✦</span>
+        <div>
+          <strong>${active.length ? `Tienes ${active.length} ${label}` : "No tienes clases para hoy"}</strong>
+          <span>${active.length ? "Aquí tienes tu agenda lista para atender." : "Disfruta el espacio o revisa la Semana."}</span>
+        </div>
+      </div>
+      <div class="mcal-today__stats">
+        <div><strong>${active.length}</strong><span>Programadas</span></div>
+        <div><strong>${confirmed.length}</strong><span>Confirmadas</span></div>
+        <div><strong>${pending.length}</strong><span>Pendientes</span></div>
+      </div>`;
   }
 
   /* El CSV de Wix es una fotografía actual de las clases. Cuando una

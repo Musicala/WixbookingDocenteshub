@@ -49,6 +49,77 @@
   color: #5a5a6e;
 }
 
+/* Resumen de inicio: hace que la agenda de hoy se lea como una pantalla de
+   trabajo y no como un calendario técnico. */
+.mcal-today {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+  margin: 1rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid #e5def8;
+  border-radius: 18px;
+  background: linear-gradient(120deg, #fbf9ff, #f1fbfa);
+  box-shadow: 0 8px 20px rgba(56, 31, 116, 0.06);
+}
+
+.mcal-today__headline {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.mcal-today__spark {
+  display: grid;
+  width: 2.35rem;
+  height: 2.35rem;
+  place-items: center;
+  border-radius: 12px;
+  color: #fff;
+  background: linear-gradient(135deg, #7856df, #17aaa0);
+  font-size: 1.1rem;
+}
+
+.mcal-today__headline strong,
+.mcal-today__headline span,
+.mcal-today__stats strong,
+.mcal-today__stats span {
+  display: block;
+}
+
+.mcal-today__headline strong {
+  color: var(--mcal-deep);
+  font-size: 0.96rem;
+}
+
+.mcal-today__headline span {
+  margin-top: 0.16rem;
+  color: #726b83;
+  font-size: 0.78rem;
+}
+
+.mcal-today__stats {
+  display: flex;
+  gap: 0.9rem;
+}
+
+.mcal-today__stats div {
+  min-width: 3.6rem;
+  text-align: center;
+}
+
+.mcal-today__stats strong {
+  color: var(--mcal-primary);
+  font-size: 1.05rem;
+}
+
+.mcal-today__stats span {
+  margin-top: 0.08rem;
+  color: #756f83;
+  font-size: 0.64rem;
+}
+
 /* --------------------- Filtros (admin) ---------------------- */
 
 .mcal__filters {
@@ -556,6 +627,33 @@
 
 /* Punto de color en vista Lista */
 .mcal .fc-list-event .fc-list-event-dot { border-color: var(--mcal-primary); }
+.mcal .fc .fc-list-table {
+  border-collapse: separate;
+  border-spacing: 0 0.55rem;
+}
+
+.mcal .fc .fc-list-event td {
+  padding: 0.72rem 0.65rem;
+  background: #fff;
+  border-top: 1px solid #ebe7f2;
+  border-bottom: 1px solid #ebe7f2;
+  vertical-align: middle;
+}
+
+.mcal .fc .fc-list-event td:first-child {
+  border-left: 1px solid #ebe7f2;
+  border-radius: 13px 0 0 13px;
+}
+
+.mcal .fc .fc-list-event td:last-child {
+  border-right: 1px solid #ebe7f2;
+  border-radius: 0 13px 13px 0;
+}
+
+.mcal .fc .fc-list-event:hover td {
+  background: #fbfaff;
+  border-color: #d9cef8;
+}
 .mcal .fc-list-event.mcal-event--cancelled td { color: #8a8a98; text-decoration: line-through; }
 .mcal .fc-list-event.mcal-event--pending .fc-list-event-dot { border-color: #d9a72c; }
 .mcal .fc-list-event.mcal-event--rescheduled .fc-list-event-dot { border-color: var(--mcal-violet); }
@@ -1490,6 +1588,37 @@
 .mcal-class-detail {
   display: grid;
   gap: 1rem;
+}
+
+@media (max-width: 680px) {
+  .mcal__legend { display: none; }
+
+  .mcal-today {
+    grid-template-columns: 1fr;
+    gap: 0.85rem;
+    margin: 0.75rem;
+    padding: 0.9rem;
+  }
+
+  .mcal-today__stats {
+    justify-content: space-around;
+    padding-top: 0.65rem;
+    border-top: 1px solid #e6e1f0;
+  }
+
+  .mcal .fc .fc-toolbar {
+    gap: 0.55rem;
+    padding: 0 0.75rem;
+  }
+
+  .mcal .fc .fc-toolbar-title { font-size: 0.94rem; }
+
+  .mcal .fc .fc-agendaToday-button,
+  .mcal .fc .fc-agendaWeek-button,
+  .mcal .fc .fc-agendaMonth-button {
+    padding: 0.32rem 0.55rem;
+    font-size: 0.7rem;
+  }
 }
 
 .mcal-class-detail__hero {
