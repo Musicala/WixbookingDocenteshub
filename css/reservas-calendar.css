@@ -563,6 +563,36 @@
 .mcal .fc-list-event.mcal-event--blocked .fc-list-event-dot { border-color: var(--mcal-violet); }
 .mcal .fc-list-event.mcal-event--cancelled .fc-list-event-dot { border-color: #b6b6c2; }
 
+/* El bloque de hoy queda claramente identificado en la vista Lista. */
+.mcal .fc-list-day.mcal-list-day--today th {
+  padding: 0.65rem 0.75rem;
+  background: linear-gradient(120deg, #f1edff, #edf4ff);
+  border-top: 2px solid var(--mcal-accent, #5729ff);
+  border-bottom: 1px solid #d9d2ff;
+}
+
+.mcal .fc-list-day.mcal-list-day--today .fc-list-day-cushion {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  color: #271268;
+  font-weight: 800;
+}
+
+.mcal .mcal-list-day__today-label {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  background: var(--mcal-accent, #5729ff);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+}
+
 /* ----------------------- Mensaje vacío ---------------------- */
 
 .mcal__empty {
@@ -942,8 +972,14 @@
 
 .mcal-updates__groups {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.6rem;
+}
+
+@media (max-width: 760px) {
+  .mcal-updates__groups {
+    grid-template-columns: 1fr;
+  }
 }
 
 .mcal-updates__group {
@@ -954,8 +990,8 @@
 }
 
 .mcal-updates__group--cancelled { border-left-color: #dc2626; }
-.mcal-updates__group--rescheduled { border-left-color: #0f8f68; }
-.mcal-updates__group--created { border-left-color: #1769ff; }
+.mcal-updates__group--rescheduled { border-left-color: #7c3aed; }
+.mcal-updates__group--created { border-left-color: #159947; }
 
 .mcal-updates__group strong {
   display: block;
@@ -972,6 +1008,29 @@
   font-size: 0.85rem;
   color: #33355a;
 }
+
+.mcal-updates__group li {
+  list-style: none;
+  position: relative;
+}
+
+.mcal-updates__dot {
+  display: inline-block;
+  width: 0.52rem;
+  height: 0.52rem;
+  border-radius: 50%;
+  margin-right: 0.42rem;
+  vertical-align: 0.04em;
+}
+
+.mcal-updates__dot--cancelled { background: #dc2626; }
+.mcal-updates__dot--rescheduled { background: #7c3aed; }
+.mcal-updates__dot--created { background: #159947; }
+
+.mcal-updates__action { font-weight: 800; }
+.mcal-updates__action--cancelled { color: #c81e1e; }
+.mcal-updates__action--rescheduled { color: #6d28d9; }
+.mcal-updates__action--created { color: #12833d; }
 
 /* Relleno automático de salones */
 .mcal-autofill {

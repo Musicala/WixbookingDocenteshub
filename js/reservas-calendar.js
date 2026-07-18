@@ -447,7 +447,10 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     bookings: new Map(),      // bookingId -> data del rango visible
     staffLinks: new Map(),    // nombre normalizado de Wix/CSV -> email Hub
     roomAssignments: new Map(), // groupKey -> asignacion de salon
-    filters: { alcance: isAdvisor ? "all" : "mine", docente: "", estado: "", servicio: "", especial: "" },
+    /* Coordinación y administración comienzan viendo toda la agenda. Así no
+       parece que faltaran clases cuando el admin también es docente; puede
+       cambiar a "Mis clases" desde el filtro si lo necesita. */
+    filters: { alcance: isAdmin ? "all" : "mine", docente: "", estado: "", servicio: "", especial: "" },
     displayMode: "calendar",
     roomsView: isAdmin ? "table" : "live",
     roomsSearch: "",
@@ -509,8 +512,8 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
         <label class="mcal__filter">
           <span>Vista</span>
           <select id="mcal-f-alcance">
-            <option value="mine" selected>Mis clases</option>
-            <option value="all">Todas</option>
+            <option value="mine" ${state.filters.alcance === "mine" ? "selected" : ""}>Mis clases</option>
+            <option value="all" ${state.filters.alcance === "all" ? "selected" : ""}>Todas</option>
           </select>
         </label>`}
         <label class="mcal__filter">
@@ -614,6 +617,31 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
 
   const isMobile = window.matchMedia("(max-width: 768px)").matches;
 
+  // Resalta el encabezado del día actual cuando se muestra la vista Lista.
+  function highlightTodayInList() {
+    if (!state.calendar?.view?.type?.startsWith("list")) return;
+
+    const today = new Date();
+    const todayKey = [
+      today.getFullYear(),
+      String(today.getMonth() + 1).padStart(2, "0"),
+      String(today.getDate()).padStart(2, "0"),
+    ].join("-");
+
+    calendarEl.querySelectorAll(".fc-list-day[data-date]").forEach((day) => {
+      const isToday = day.dataset.date === todayKey;
+      day.classList.toggle("mcal-list-day--today", isToday);
+      if (!isToday || day.querySelector(".mcal-list-day__today-label")) return;
+
+      const cushion = day.querySelector(".fc-list-day-cushion");
+      if (!cushion) return;
+      const label = document.createElement("span");
+      label.className = "mcal-list-day__today-label";
+      label.textContent = isAdmin ? "Clases de hoy" : "Mis clases de hoy";
+      cushion.prepend(label);
+    });
+  }
+
   state.calendar = new FullCalendar.Calendar(calendarEl, {
     locale: "es",
     initialView: isAdmin && !isMobile ? "timeGridWeek" : "listWeek",
@@ -645,6 +673,11 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     // re-consultamos Firestore SOLO para ese rango.
     datesSet(info) {
       subscribeToRange(info.start, info.end);
+      requestAnimationFrame(highlightTodayInList);
+    },
+
+    eventDidMount() {
+      highlightTodayInList();
     },
 
     eventClick(info) {
@@ -1523,7 +1556,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     };
     const previousScope = state.filters.alcance;
     state.filters = {
-      alcance: get("#mcal-f-alcance") || (isAdvisor ? "all" : "mine"),
+      alcance: get("#mcal-f-alcance") || (isAdmin ? "all" : "mine"),
       docente: get("#mcal-f-docente"),
       estado: get("#mcal-f-estado"),
       servicio: get("#mcal-f-servicio"),
@@ -3088,7 +3121,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     return new Date(Math.max(...stamps.map((d) => d.getTime())));
   }
 
-  function renderUpdatesBanner({ cancelled, rescheduled, created }) {
+  function renderLegacyUpdatesBanner({ cancelled, rescheduled, created }) {
     const section = (title, items, cls) => (items.length ? `
       <div class="mcal-updates__group mcal-updates__group--${cls}">
         <strong>${title} (${items.length})</strong>
@@ -3104,6 +3137,79 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
           ${section("Canceladas", cancelled, "cancelled")}
           ${section("Reprogramadas", rescheduled, "rescheduled")}
           ${section("Nuevas clases", created, "created")}
+        </div>
+      </div>`;
+  }
+
+  function formatUpdateDate(value) {
+    const date = toDateSafe(value);
+    return date
+      ? date.toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "2-digit" })
+      : "fecha sin confirmar";
+  }
+
+  function renderUpdatesBanner({ cancelled, rescheduled, created }) {
+    const updateDescription = (item) => {
+      const student = item.customerName || "Estudiante sin nombre";
+      const service = item.serviceName || "clase";
+      const date = formatUpdateDate(item.start);
+      const previousDate = formatUpdateDate(item.previousStart);
+      const prefix = `${student} de ${service}`;
+
+      if (item.action === "cancelled") return `${prefix} canceló la clase del ${date}.`;
+      if (item.action === "rescheduled") return `${prefix} reprogramó la clase del ${previousDate} para el ${date}.`;
+      if (item.action === "updated") return `${prefix} actualizó la clase para el ${date}.`;
+      return `${prefix} agendó una clase para el ${date}.`;
+    };
+    const section = (title, items, cls) => (items.length ? `
+      <div class="mcal-updates__group mcal-updates__group--${cls}">
+        <strong>${title} (${items.length})</strong>
+        <ul>${items.slice(0, 8).map((item) => `<li>${escapeHTML(updateDescription(item))}</li>`).join("")}${items.length > 8 ? `<li>y ${items.length - 8} más…</li>` : ""}</ul>
+      </div>` : "");
+    return `
+      <div class="mcal-updates__inner" role="status">
+        <div class="mcal-updates__head">
+          <span class="mcal-updates__badge">Novedades desde tu última visita</span>
+          <button type="button" class="mcal-updates__dismiss" data-updates-dismiss aria-label="Cerrar novedades">×</button>
+        </div>
+        <div class="mcal-updates__groups">
+          ${section("Nuevas clases", created, "created")}
+          ${section("Canceladas", cancelled, "cancelled")}
+          ${section("Reprogramadas / actualizadas", rescheduled, "rescheduled")}
+        </div>
+      </div>`;
+  }
+
+  function renderColoredUpdatesBanner({ cancelled, rescheduled, created }) {
+    const detail = (item) => {
+      const student = escapeHTML(item.customerName || "Estudiante sin nombre");
+      const service = escapeHTML(item.serviceName || "clase");
+      const date = escapeHTML(formatUpdateDate(item.start));
+      const previousDate = escapeHTML(formatUpdateDate(item.previousStart));
+      const action = item.action === "cancelled"
+        ? { label: "canceló", cls: "cancelled", suffix: ` la clase del ${date}.` }
+        : item.action === "rescheduled"
+          ? { label: "reprogramó", cls: "rescheduled", suffix: ` la clase del ${previousDate} para el ${date}.` }
+          : item.action === "updated"
+            ? { label: "actualizó", cls: "rescheduled", suffix: ` la clase para el ${date}.` }
+            : { label: "agendó", cls: "created", suffix: ` una clase para el ${date}.` };
+      return `<span class="mcal-updates__dot mcal-updates__dot--${action.cls}" aria-hidden="true"></span>${student} de ${service} <span class="mcal-updates__action mcal-updates__action--${action.cls}">${action.label}</span>${action.suffix}`;
+    };
+    const section = (title, items, cls) => (items.length ? `
+      <div class="mcal-updates__group mcal-updates__group--${cls}">
+        <strong>${title} (${items.length})</strong>
+        <ul>${items.slice(0, 8).map((item) => `<li>${detail(item)}</li>`).join("")}${items.length > 8 ? `<li>y ${items.length - 8} más…</li>` : ""}</ul>
+      </div>` : "");
+    return `
+      <div class="mcal-updates__inner" role="status">
+        <div class="mcal-updates__head">
+          <span class="mcal-updates__badge">Novedades desde tu última visita</span>
+          <button type="button" class="mcal-updates__dismiss" data-updates-dismiss aria-label="Cerrar novedades">×</button>
+        </div>
+        <div class="mcal-updates__groups">
+          ${section("Nuevas clases", created, "created")}
+          ${section("Canceladas", cancelled, "cancelled")}
+          ${section("Reprogramadas / actualizadas", rescheduled, "rescheduled")}
         </div>
       </div>`;
   }
@@ -3142,13 +3248,28 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
         const changed = bookingChangedAt(b);
         if (!changed || changed <= lastSeen) return;
         const status = normalizeStatus(b.status);
-        const key = `${getGroupKey(b) || b.bookingId || b._docId}|${status}`;
+        /* Cada reserva conserva su estudiante, incluso cuando varias forman
+           una clase grupal. No usar groupKey aquí: ocultaría los demás
+           estudiantes que tuvieron una novedad. */
+        const key = `${b.bookingId || b._docId}|${status}`;
         if (seenKeys.has(key)) return;
         seenKeys.add(key);
-        const entry = { serviceName: b.serviceName, start: getBookingStart(b) };
+        const start = getBookingStart(b);
+        const previousStart = toDateSafe(b.previousStartDate) || toDateSafe(b.previousStartDateRaw);
+        const entry = {
+          customerName: b.customerName,
+          serviceName: b.serviceName,
+          start,
+          previousStart,
+          action: "created",
+        };
         if (status === "cancelled") {
+          entry.action = "cancelled";
           cancelled.push(entry);
         } else if (status === "rescheduled" || status === "updated") {
+          entry.action = previousStart && start && previousStart.getTime() !== start.getTime()
+            ? "rescheduled"
+            : "updated";
           rescheduled.push(entry);
         } else if (toDateSafe(b.createdAt) && toDateSafe(b.createdAt) > lastSeen) {
           created.push(entry);
@@ -3160,7 +3281,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
 
       if (!(cancelled.length + rescheduled.length + created.length)) return;
 
-      el.innerHTML = renderUpdatesBanner({ cancelled, rescheduled, created });
+      el.innerHTML = renderColoredUpdatesBanner({ cancelled, rescheduled, created });
       el.hidden = false;
       el.querySelector("[data-updates-dismiss]")?.addEventListener("click", () => { el.hidden = true; });
     } catch (error) {

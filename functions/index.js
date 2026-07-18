@@ -398,31 +398,74 @@ async function findSupersededBookings(db, booking) {
     if (normalizeStatus(data.status) === "cancelled") return false;
     if (booking.serviceName && cleanText(data.serviceName) !== booking.serviceName) return false;
     if (booking.customerEmail && normalizeEmail(data.customerEmail) !== booking.customerEmail) return false;
-    if (booking.staffEmail && data.staffEmail && normalizeEmail(data.staffEmail) !== booking.staffEmail) return false;
+    /* No comparar el docente: este método se invoca justamente cuando Wix
+       reemplaza una reserva por otra (mismo estudiante/servicio/horario), y
+       en una reasignación de docente el correo de la reserva anterior debe
+       ser distinto. */
     return true;
   });
 }
 
+/* Identidad del grupo para deduplicar, independiente del docente. En un cambio
+   de docente el conjunto de estudiantes (roster) NO cambia. Si Wix no manda
+   correos, usamos el nombre del estudiante. No usamos la sede como respaldo:
+   varias clases reales comparten sede y hora y no se deben borrar entre sí. */
+function groupIdentity(data) {
+  const roster = uniqueEmails([
+    data.studentEmails,
+    data.customerEmails,
+    data.customerEmail,
+  ]).sort().join(",");
+  if (roster) return "r:" + roster;
+  /* Algunos eventos de Wix no incluyen correo (sobre todo al editar una
+     reserva). El nombre del estudiante sigue siendo suficiente para reconocer
+     una sustitución y es más preciso que la sede compartida. */
+  const customerName = cleanText(data.customerName).toLowerCase();
+  if (customerName) return "n:" + customerName;
+  return "";
+}
+
+function timestampMillis(value) {
+  if (!value) return 0;
+  if (typeof value.toMillis === "function") return value.toMillis();
+  if (value instanceof Date) return value.getTime();
+  return 0;
+}
+
+/* Wix puede serializar la misma hora con segundos o milisegundos distintos
+   entre la reserva anterior y la nueva. Comparamos por minuto. */
+function slotMinute(value) {
+  const ms = timestampMillis(value);
+  return ms ? Math.floor(ms / 60000) : 0;
+}
+
 /* Deduplicación por horario: si llega una reserva (nueva o actualizada) y ya
-   existen OTRAS activas en el MISMO horario para el mismo cliente y servicio,
+   existen OTRAS activas en el MISMO horario para el mismo grupo,
    son duplicados y se marcan como superados. Caso típico: al cambiar el
    docente en Wix (sin cambiar la fecha), Wix emite un booking_id nuevo y la
    versión anterior —con el docente viejo— queda duplicada en el mismo horario.
    A propósito NO se filtra por docente, para atrapar justamente esos cambios.
-   Solo consulta por igualdades (startDate + customerEmail + serviceName), que
-   Firestore resuelve sin índice compuesto. */
+   Wix puede cambiar el texto del servicio al reasignar, por lo que no se
+   compara. Consulta una ventana pequeña de tiempo y filtra por la identidad
+   segura del grupo. */
 async function findDuplicateSlotBookings(db, booking) {
-  if (!booking.startDate || !booking.customerEmail || !booking.serviceName) return [];
+  if (!booking.startDate || !booking.serviceName) return [];
+  const identity = groupIdentity(booking);
+  if (!identity) return [];
 
+  const startMs = timestampMillis(booking.startDate);
+  if (!startMs) return [];
   const snap = await db.collection("calendarioWix")
-    .where("startDate", "==", booking.startDate)
-    .where("customerEmail", "==", booking.customerEmail)
-    .where("serviceName", "==", booking.serviceName)
+    .where("startDate", ">=", admin.firestore.Timestamp.fromMillis(startMs - 60000))
+    .where("startDate", "<", admin.firestore.Timestamp.fromMillis(startMs + 60000))
     .get();
 
   return snap.docs.filter((doc) => {
     if (doc.id === booking.bookingId) return false;
-    return normalizeStatus(doc.data().status) !== "cancelled";
+    const d = doc.data();
+    if (normalizeStatus(d.status) === "cancelled") return false;
+    return slotMinute(d.startDate) === slotMinute(booking.startDate) &&
+      groupIdentity(d) === identity;
   });
 }
 
@@ -754,10 +797,11 @@ exports.wixBookingWebhook = onRequest(
    Mantenimiento de un solo uso: dedupeCalendarioWix
    ------------------------------------------------------------
    Limpia duplicados YA existentes en el mismo horario (mismo
-   startDate + customerEmail + serviceName) dejando solo la reserva
-   más reciente y marcando el resto como cancelada/superada. Pensado
-   para el caso de talleres que cambiaron de docente y quedaron
-   duplicados antes de desplegar la deduplicación del webhook.
+   startDate + identidad de grupo (roster/salón) + serviceName)
+   dejando solo la reserva más reciente y marcando el resto como
+   cancelada/superada. Pensado para el caso de talleres que cambiaron
+   de docente y quedaron duplicados antes de desplegar la
+   deduplicación del webhook.
 
    Uso (protegido con el mismo secreto del webhook):
      - Dry-run (no escribe, solo reporta):
@@ -789,31 +833,33 @@ exports.dedupeCalendarioWix = onRequest(async (req, res) => {
 
     const db = admin.firestore();
     let query = db.collection("calendarioWix");
-    if (from) query = query.where("startDate", ">=", from);
-    if (to) query = query.where("startDate", "<=", to + "");
+    /* startDate es Timestamp. Consultarlo con strings hacía que los rangos
+       devolvieran cero resultados. El límite superior exclusivo incluye todo
+       el día indicado en `to`. */
+    if (from) {
+      const fromDate = new Date(`${from}T00:00:00.000-05:00`);
+      if (Number.isNaN(fromDate.getTime())) throw new Error("Parámetro from inválido (usa YYYY-MM-DD)");
+      query = query.where("startDate", ">=", admin.firestore.Timestamp.fromDate(fromDate));
+    }
+    if (to) {
+      const toDate = new Date(`${to}T00:00:00.000-05:00`);
+      if (Number.isNaN(toDate.getTime())) throw new Error("Parámetro to inválido (usa YYYY-MM-DD)");
+      toDate.setDate(toDate.getDate() + 1);
+      query = query.where("startDate", "<", admin.firestore.Timestamp.fromDate(toDate));
+    }
     const snap = await query.get();
 
-    /* startDate se guarda como Timestamp (objeto), no como string. Hay que
-       serializarlo a un valor canónico o el key colapsaría TODAS las fechas en
-       "[object Object]" y agruparía clases de días distintos como duplicados. */
-    const startKey = (v) => {
-      if (!v) return "";
-      if (typeof v === "string") return v;
-      if (typeof v.toMillis === "function") return String(v.toMillis());
-      if (v._seconds != null) return String(v._seconds) + "." + String(v._nanoseconds || 0);
-      if (v instanceof Date) return String(v.getTime());
-      return String(v);
-    };
-
-    /* Agrupar activas por horario+cliente+servicio */
+    /* Agrupar activas por horario + identidad de grupo (roster/salón) + servicio */
     const groups = new Map();
     snap.docs.forEach((doc) => {
       const d = doc.data();
       if (normalizeStatus(d.status) === "cancelled") return;
-      if (!d.startDate || !d.customerEmail || !d.serviceName) return;
+      if (!d.startDate || !d.serviceName) return;
+      const identity = groupIdentity(d);
+      if (!identity) return;
       const key = [
-        startKey(d.startDate),
-        normalizeEmail(d.customerEmail),
+        slotMinute(d.startDate),
+        identity,
         ignoreService ? "" : cleanText(d.serviceName),
       ].join("|");
       if (!groups.has(key)) groups.set(key, []);

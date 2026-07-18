@@ -447,7 +447,10 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     bookings: new Map(),      // bookingId -> data del rango visible
     staffLinks: new Map(),    // nombre normalizado de Wix/CSV -> email Hub
     roomAssignments: new Map(), // groupKey -> asignacion de salon
-    filters: { alcance: isAdvisor ? "all" : "mine", docente: "", estado: "", servicio: "", especial: "" },
+    /* Coordinación y administración comienzan viendo toda la agenda. Así no
+       parece que faltaran clases cuando el admin también es docente; puede
+       cambiar a "Mis clases" desde el filtro si lo necesita. */
+    filters: { alcance: isAdmin ? "all" : "mine", docente: "", estado: "", servicio: "", especial: "" },
     displayMode: "calendar",
     roomsView: isAdmin ? "table" : "live",
     roomsSearch: "",
@@ -509,8 +512,8 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
         <label class="mcal__filter">
           <span>Vista</span>
           <select id="mcal-f-alcance">
-            <option value="mine" selected>Mis clases</option>
-            <option value="all">Todas</option>
+            <option value="mine" ${state.filters.alcance === "mine" ? "selected" : ""}>Mis clases</option>
+            <option value="all" ${state.filters.alcance === "all" ? "selected" : ""}>Todas</option>
           </select>
         </label>`}
         <label class="mcal__filter">
@@ -1523,7 +1526,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     };
     const previousScope = state.filters.alcance;
     state.filters = {
-      alcance: get("#mcal-f-alcance") || (isAdvisor ? "all" : "mine"),
+      alcance: get("#mcal-f-alcance") || (isAdmin ? "all" : "mine"),
       docente: get("#mcal-f-docente"),
       estado: get("#mcal-f-estado"),
       servicio: get("#mcal-f-servicio"),
