@@ -420,6 +420,17 @@
         display: none;
       }
 
+      /* En móvil, una vez autenticado, la agenda Wix es la experiencia
+         principal: evitamos dos cabeceras seguidas y dejamos que "Mi agenda"
+         abra directamente como una pantalla nativa. */
+      .app.is-authenticated .topbar {
+        display: none;
+      }
+
+      .app.is-authenticated .calendar-shell {
+        overflow: visible;
+      }
+
       .topbar {
         align-items: stretch;
         flex-direction: column;
@@ -630,14 +641,18 @@
 
     function startCalendar(user) {
       if (!hasFirebaseConfig()) {
+        appShell.classList.remove("is-authenticated");
         showSetupMessage();
         return;
       }
 
       if (!user || !user.email) {
+        appShell.classList.remove("is-authenticated");
         showLoginMessage();
         return;
       }
+
+      appShell.classList.add("is-authenticated");
 
       if (calendarModule) {
         calendarModule.destroy();
@@ -800,6 +815,7 @@
           authButton.textContent = "Salir";
           startCalendar(user);
         } else {
+          appShell.classList.remove("is-authenticated");
           userEmail.value = "";
           authButton.textContent = "Entrar";
           if (calendarModule) {
