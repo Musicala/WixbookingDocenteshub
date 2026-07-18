@@ -458,18 +458,16 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     destroyed: false,
   };
 
+  const isTeacherView = () => !isAdmin || state.filters.alcance === "mine";
+
   /* --------------------- Estructura DOM --------------------- */
 
   container.innerHTML = `
-    <section class="mcal" aria-label="Calendario de reservas Wix">
+    <section class="mcal ${isTeacherView() ? "is-teacher-view" : ""}" aria-label="Calendario de reservas Wix">
       <header class="mcal__header">
         <div class="mcal__title-block">
-          <h2 class="mcal__title">${isAdmin ? "Agenda de clases" : "Mi agenda"}</h2>
-          <p class="mcal__subtitle">${
-            isAdmin
-              ? "Tus clases asignadas. Cambia a vista admin para ver todo."
-              : "Tus clases asignadas desde Wix"
-          }</p>
+          <h2 class="mcal__title" id="mcal-agenda-title">${isTeacherView() ? "Mi agenda" : "Agenda de clases"}</h2>
+          <p class="mcal__subtitle" id="mcal-agenda-subtitle">${isTeacherView() ? "Tus clases asignadas desde Wix" : "Agenda completa de docentes"}</p>
         </div>
         <div class="mcal__modebar" aria-label="Cambiar vista">
           <button type="button" class="mcal__mode-button is-active" data-mcal-mode="calendar">Calendario</button>
@@ -1607,14 +1605,33 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       }
     }
 
+    updateTeacherPresentation();
+
     if (previousScope !== state.filters.alcance && state.calendar) {
       state.currentRangeKey = "";
-      const view = state.calendar.view;
-      subscribeToRange(view.activeStart, view.activeEnd);
+      setDisplayMode("calendar");
+      if (isTeacherView()) {
+        state.calendar.changeView("listDay");
+        state.calendar.gotoDate(new Date());
+      } else {
+        state.calendar.changeView(isMobile ? "listDay" : "timeGridWeek");
+      }
       return;
     }
 
     renderEvents();
+  }
+
+  function updateTeacherPresentation() {
+    const teacherView = isTeacherView();
+    const root = container.querySelector(".mcal");
+    root?.classList.toggle("is-teacher-view", teacherView);
+    const title = container.querySelector("#mcal-agenda-title");
+    const subtitle = container.querySelector("#mcal-agenda-subtitle");
+    if (title) title.textContent = teacherView ? "Mi agenda" : "Agenda de clases";
+    if (subtitle) subtitle.textContent = teacherView
+      ? "Tus clases asignadas desde Wix"
+      : "Agenda completa de docentes";
   }
 
   if (isAdmin) {
@@ -2619,32 +2636,6 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
 
     modalTitleEl.textContent = "Detalle de la clase";
 
-    const rows = [];
-    const row = (label, value, opts = {}) => {
-      if (value === null || value === undefined || value === "") return;
-      rows.push(`
-        <div class="mcal-modal__row${opts.full ? " mcal-modal__row--full" : ""}">
-          <dt>${escapeHTML(label)}</dt>
-          <dd>${opts.html ? value : escapeHTML(value)}</dd>
-        </div>`);
-    };
-
-    row("Docente", b.staffName || b.staffEmail || "Sin asignar");
-    row("Fecha", start ? start.toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "—");
-    row("Horario", `${formatTime(start)} – ${formatTime(end)}`);
-    row("Ubicación", b.location);
-    row("Salón", roomAssignment?.roomName || roomAssignment?.roomLabel || "Sin asignar");
-    if (b.source === "academic-task") {
-      row("Bitácora académica", `<a class="mcal-academic-log-link" href="${ACADEMIC_LOG_URL}" target="_blank" rel="noopener noreferrer">Abrir Bitácora Académica</a>`, { full: true, html: true });
-      if (isAdmin) {
-        row("Administrar", `<button type="button" class="mcal-academic-task-delete" data-academic-task-delete data-booking-id="${escapeHTML(b.bookingId || b._docId || "")}" data-group-key="${escapeHTML(groupKey)}">Eliminar tarea académica</button><span class="mcal-room-assign__status" data-academic-delete-status></span>`, { full: true, html: true });
-      }
-    }
-    row("Última actualización", formatDateTime(updatedAt));
-    if (isAdmin && !roomAssignment?.automatic) {
-      row("Asignar salón", renderRoomAssignmentControl(b, groupKey, roomAssignment), { full: true, html: true });
-    }
-
     const participants = b.source === "academic-task"
       ? []
       : b.isGroup && Array.isArray(b.participants)
@@ -2655,6 +2646,33 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
               ? b.studentEmails[0]
               : b.customerEmail,
           }];
+    const rows = [];
+    const row = (icon, label, value, opts = {}) => {
+      if (value === null || value === undefined || value === "") return;
+      rows.push(`
+        <div class="mcal-modal__row mcal-modal__row--icon${opts.full ? " mcal-modal__row--full" : ""}">
+          <dt aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}">${icon}</dt>
+          <dd>${opts.html ? value : escapeHTML(value)}</dd>
+        </div>`);
+    };
+
+    row("♙", "Docente", b.staffName || b.staffEmail || "Sin asignar");
+    row("▣", "Fecha", start ? start.toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "—");
+    row("◷", "Horario", `${formatTime(start)} – ${formatTime(end)}`);
+    row("⌂", "Salón", roomAssignment?.roomName || roomAssignment?.roomLabel || "Sin asignar");
+    row("⌖", "Ubicación", b.location);
+    if (participants.length > 1) row("♟", "Participantes", `${participants.length} estudiantes`);
+    if (b.source === "academic-task") {
+      row("▤", "Bitácora académica", `<a class="mcal-academic-log-link" href="${ACADEMIC_LOG_URL}" target="_blank" rel="noopener noreferrer">Abrir Bitácora Académica</a>`, { full: true, html: true });
+      if (isAdmin) {
+        row("⚙", "Administrar", `<button type="button" class="mcal-academic-task-delete" data-academic-task-delete data-booking-id="${escapeHTML(b.bookingId || b._docId || "")}" data-group-key="${escapeHTML(groupKey)}">Eliminar tarea académica</button><span class="mcal-room-assign__status" data-academic-delete-status></span>`, { full: true, html: true });
+      }
+    }
+    row("↻", "Última actualización", formatDateTime(updatedAt));
+    if (isAdmin && !roomAssignment?.automatic) {
+      row("⌂", "Asignar salón", renderRoomAssignmentControl(b, groupKey, roomAssignment), { full: true, html: true });
+    }
+
     const participantsTitle = participants.length === 1 ? "Participante" : `Participantes · ${participants.length}`;
     const dateLabel = start
       ? start.toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long" })

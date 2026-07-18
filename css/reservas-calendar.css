@@ -49,6 +49,16 @@
   color: #5a5a6e;
 }
 
+/* Cuando un admin-docente elige "Mis clases", se presenta como docente:
+   agenda personal, sin controles propios de coordinación. */
+.mcal.is-teacher-view [data-mcal-mode="rooms"] {
+  display: none;
+}
+
+.mcal.is-teacher-view .mcal__modebar {
+  display: none;
+}
+
 /* Resumen de inicio: hace que la agenda de hoy se lea como una pantalla de
    trabajo y no como un calendario técnico. */
 .mcal-today {
@@ -1734,6 +1744,29 @@
   border: 1px solid var(--haydn, #e6e8e8);
   border-radius: 8px;
   padding: 0.75rem;
+}
+
+.mcal-modal__row--icon {
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  align-items: center;
+  column-gap: 0.45rem;
+}
+
+.mcal-modal__row--icon dt {
+  display: grid;
+  width: 1.25rem;
+  height: 1.25rem;
+  place-items: center;
+  margin: 0;
+  color: #625a79;
+  font-size: 1rem;
+  line-height: 1;
+  text-transform: none;
+}
+
+.mcal-modal__row--icon dd {
+  min-width: 0;
+  font-size: 0.84rem;
 }
 
 .mcal-participants strong,
