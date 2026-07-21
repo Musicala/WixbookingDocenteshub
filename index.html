@@ -809,11 +809,25 @@
       bitacorasDb = getFirestore(bitacorasApp);
       bitacorasAuth = getAuth(bitacorasApp);
 
-      onAuthStateChanged(auth, (user) => {
+      onAuthStateChanged(auth, async (user) => {
         if (user) {
           userEmail.value = user.email || "";
           authButton.textContent = "Salir";
-          startCalendar(user);
+          try {
+            /* Al restaurar una sesión después de cerrar el navegador, renovar
+               el token antes de abrir Firestore evita consultar con una
+               credencial vencida o anterior a un cambio de reglas. */
+            await user.getIdToken(true);
+            startCalendar(user);
+          } catch (error) {
+            console.error("No se pudo renovar la sesión de Firebase:", error);
+            appShell.classList.remove("is-authenticated");
+            container.innerHTML = `
+              <div class="setup">
+                <h2>No se pudo validar tu sesión</h2>
+                <p>Cierra sesión e ingresa de nuevo para cargar las clases.</p>
+              </div>`;
+          }
         } else {
           appShell.classList.remove("is-authenticated");
           userEmail.value = "";
