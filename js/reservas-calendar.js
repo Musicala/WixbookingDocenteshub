@@ -29,6 +29,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  getDocsFromServer,
   setDoc,
   deleteDoc,
   query,
@@ -839,9 +840,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
           orderBy("startDate", "asc")
         );
 
-    state.unsubscribe = onSnapshot(
-      q,
-      async (snap) => {
+    const applySnapshot = async (snap) => {
         if (roomsEl) delete roomsEl.dataset.loadError;
         state.bookings.clear();
         snap.forEach((doc) => {
@@ -854,8 +853,9 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
         await refreshRoomAssignments(rangeStart, rangeEnd);
         if (isAdmin) refreshAdminFilterOptions();
         renderEvents();
-      },
-      (err) => {
+      };
+
+    const handleLoadError = (err) => {
         // Si Firestore pide un índice compuesto, la consola del navegador
         // mostrará un link directo para crearlo. Ver README → Índices.
         console.error("[ReservasCalendar] Error de Firestore:", err);
@@ -870,8 +870,12 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
           roomsEl.dataset.loadError = message;
           renderRoomsView();
         }
-      }
-    );
+      };
+
+    /* Fuerza una lectura actual desde Firestore al abrir o cambiar de rango.
+       El listener sigue activo para recibir cambios posteriores. */
+    getDocsFromServer(q).then(applySnapshot).catch(handleLoadError);
+    state.unsubscribe = onSnapshot(q, applySnapshot, handleLoadError);
   }
 
   /* ---------------- Reservas → eventos FC ------------------- */

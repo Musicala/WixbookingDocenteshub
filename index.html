@@ -809,18 +809,15 @@
       bitacorasDb = getFirestore(bitacorasApp);
       bitacorasAuth = getAuth(bitacorasApp);
 
-      onAuthStateChanged(auth, async (user) => {
+      onAuthStateChanged(auth, (user) => {
         if (user) {
           userEmail.value = user.email || "";
           authButton.textContent = "Salir";
           try {
-            /* Al restaurar una sesión después de cerrar el navegador, renovar
-               el token antes de abrir Firestore evita consultar con una
-               credencial vencida o anterior a un cambio de reglas. */
-            await user.getIdToken(true);
+            /* La carga de reservas fuerza una lectura desde el servidor. */
             startCalendar(user);
           } catch (error) {
-            console.error("No se pudo renovar la sesión de Firebase:", error);
+            console.error("No se pudo iniciar el calendario:", error);
             appShell.classList.remove("is-authenticated");
             container.innerHTML = `
               <div class="setup">
