@@ -842,6 +842,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     state.unsubscribe = onSnapshot(
       q,
       async (snap) => {
+        if (roomsEl) delete roomsEl.dataset.loadError;
         state.bookings.clear();
         snap.forEach((doc) => {
           state.bookings.set(doc.id, { ...doc.data(), _docId: doc.id });
@@ -858,16 +859,16 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
         // Si Firestore pide un índice compuesto, la consola del navegador
         // mostrará un link directo para crearlo. Ver README → Índices.
         console.error("[ReservasCalendar] Error de Firestore:", err);
+        let message = "No se pudieron cargar las clases. Intenta actualizar la página.";
         if (err && err.code === "failed-precondition") {
-          showEmptyMessage(
-            "Firestore necesita un índice para esta consulta. Abre la consola del navegador y usa el enlace que aparece para crearlo."
-          );
+          message = "Firestore necesita un índice para esta consulta. Abre la consola del navegador y usa el enlace que aparece para crearlo.";
         } else if (err && err.code === "permission-denied") {
-          showEmptyMessage(
-            "Tu cuenta no tiene permiso para ver las clases. Cierra sesión e ingresa de nuevo; si continúa, avisa a coordinación."
-          );
-        } else {
-          showEmptyMessage("No se pudieron cargar las clases. Intenta actualizar la página.");
+          message = "Tu cuenta no tiene permiso para ver las clases. Cierra sesión e ingresa de nuevo; si continúa, avisa a coordinación.";
+        }
+        showEmptyMessage(message);
+        if (roomsEl) {
+          roomsEl.dataset.loadError = message;
+          renderRoomsView();
         }
       }
     );
@@ -1175,7 +1176,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
           <button type="button" data-rooms-date="1" aria-label="Dia siguiente">›</button>
           <strong>${escapeHTML(day.toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long", year: "numeric" }))}</strong>
         </div>
-        <span class="mcal-rooms__notice" data-rooms-notice>${escapeHTML(roomsEl.dataset.permissionError || `${assignedEvents.length} clase(s) con salon`)}</span>
+        <span class="mcal-rooms__notice" data-rooms-notice>${escapeHTML(roomsEl.dataset.loadError || roomsEl.dataset.permissionError || `${assignedEvents.length} clase(s) con salon`)}</span>
       </div>
       <div class="mcal-rooms-layout">
         <aside class="mcal-rooms-sidebar" aria-label="Clases sin salon asignado">
