@@ -862,6 +862,12 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
           showEmptyMessage(
             "Firestore necesita un índice para esta consulta. Abre la consola del navegador y usa el enlace que aparece para crearlo."
           );
+        } else if (err && err.code === "permission-denied") {
+          showEmptyMessage(
+            "Tu cuenta no tiene permiso para ver las clases. Cierra sesión e ingresa de nuevo; si continúa, avisa a coordinación."
+          );
+        } else {
+          showEmptyMessage("No se pudieron cargar las clases. Intenta actualizar la página.");
         }
       }
     );
