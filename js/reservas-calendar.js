@@ -460,7 +460,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     /* Coordinación y administración comienzan viendo toda la agenda. Así no
        parece que faltaran clases cuando el admin también es docente; puede
        cambiar a "Mis clases" desde el filtro si lo necesita. */
-    filters: { alcance: isAdmin ? "all" : "mine", docente: "", estado: "", servicio: "", especial: "" },
+    filters: { alcance: isAdvisor ? "all" : "mine", docente: "", estado: "", servicio: "", especial: "" },
     displayMode: "calendar",
     roomsView: isAdmin ? "table" : "live",
     roomsSearch: "",
@@ -1627,7 +1627,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     };
     const previousScope = state.filters.alcance;
     state.filters = {
-      alcance: get("#mcal-f-alcance") || (isAdmin ? "all" : "mine"),
+      alcance: get("#mcal-f-alcance") || (isAdvisor ? "all" : "mine"),
       docente: get("#mcal-f-docente"),
       estado: get("#mcal-f-estado"),
       servicio: get("#mcal-f-servicio"),
@@ -1654,6 +1654,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       } else {
         state.calendar.changeView(isMobile ? "listDay" : "timeGridWeek");
       }
+      showChangesBanner();
       return;
     }
 
@@ -3461,7 +3462,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       const horizon = addDays(today, 45);
       /* Administración y asesoría ven el consolidado de todos los docentes;
          cada docente conserva sus novedades personales. */
-      const changesQuery = isAdmin
+      const changesQuery = (isAdvisor || (isAdmin && state.filters.alcance === "all"))
         ? query(
             collection(db, COLLECTION_NAME),
             where("startDate", ">=", Timestamp.fromDate(today)),
