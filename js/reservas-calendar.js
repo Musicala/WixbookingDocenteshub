@@ -3411,6 +3411,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     const detail = (item) => {
       const student = escapeHTML(item.customerName || "Estudiante sin nombre");
       const service = escapeHTML(item.serviceName || "clase");
+      const teacher = item.staffName ? ` · ${escapeHTML(item.staffName)}` : "";
       const date = escapeHTML(formatUpdateDate(item.start));
       const previousDate = escapeHTML(formatUpdateDate(item.previousStart));
       const action = item.action === "cancelled"
@@ -3420,7 +3421,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
           : item.action === "updated"
             ? { label: "actualizó", cls: "rescheduled", suffix: ` la clase para el ${date}.` }
             : { label: "agendó", cls: "created", suffix: ` una clase para el ${date}.` };
-      return `<span class="mcal-updates__dot mcal-updates__dot--${action.cls}" aria-hidden="true"></span>${student} de ${service} <span class="mcal-updates__action mcal-updates__action--${action.cls}">${action.label}</span>${action.suffix}`;
+      return `<span class="mcal-updates__dot mcal-updates__dot--${action.cls}" aria-hidden="true"></span>${student} de ${service}${teacher} <span class="mcal-updates__action mcal-updates__action--${action.cls}">${action.label}</span>${action.suffix}`;
     };
     const section = (title, items, cls) => (items.length ? `
       <div class="mcal-updates__group mcal-updates__group--${cls}">
@@ -3458,13 +3459,23 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
 
       const today = startOfLocalDay(new Date());
       const horizon = addDays(today, 45);
-      const snap = await getDocs(query(
-        collection(db, COLLECTION_NAME),
-        where("staffEmail", "==", email),
-        where("startDate", ">=", Timestamp.fromDate(today)),
-        where("startDate", "<", Timestamp.fromDate(horizon)),
-        orderBy("startDate", "asc")
-      ));
+      /* Administración y asesoría ven el consolidado de todos los docentes;
+         cada docente conserva sus novedades personales. */
+      const changesQuery = isAdmin
+        ? query(
+            collection(db, COLLECTION_NAME),
+            where("startDate", ">=", Timestamp.fromDate(today)),
+            where("startDate", "<", Timestamp.fromDate(horizon)),
+            orderBy("startDate", "asc")
+          )
+        : query(
+            collection(db, COLLECTION_NAME),
+            where("staffEmail", "==", email),
+            where("startDate", ">=", Timestamp.fromDate(today)),
+            where("startDate", "<", Timestamp.fromDate(horizon)),
+            orderBy("startDate", "asc")
+          );
+      const snap = await getDocs(changesQuery);
 
       const cancelled = [];
       const rescheduled = [];
@@ -3486,6 +3497,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
         const entry = {
           customerName: b.customerName,
           serviceName: b.serviceName,
+          staffName: b.staffName,
           start,
           previousStart,
           action: "created",
