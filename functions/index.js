@@ -15,7 +15,7 @@
 
 "use strict";
 
-const { onRequest } = require("firebase-functions/v2/https");
+const { onRequest, onCall, HttpsError } = require("firebase-functions/v2/https");
 const { setGlobalOptions } = require("firebase-functions/v2");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
@@ -361,6 +361,229 @@ function normalizeBooking(payload) {
   };
 }
 
+/* ================= Sincronización activa con Wix ================
+   Complementa el webhook: coordinación puede pedir a Wix una lectura nueva
+   cuando sospecha que una reserva no llegó. Las credenciales solo viven en
+   Secret Manager; el navegador jamás recibe la API key. */
+function wixApiBookingToPayload(item) {
+  const booking = item.booking || item;
+  /* Query Extended Bookings: los datos de clase viven en
+     booking.bookedEntity.slot y los del estudiante en contactDetails. */
+  const bookedEntity = booking.bookedEntity || item.bookedEntity || {};
+  const slot = bookedEntity.slot || item.slot || booking.slot || {};
+  const schedule = bookedEntity.schedule || item.schedule || booking.schedule || {};
+  const session = slot.startDate ? slot : schedule;
+  const participant = booking.contactDetails || item.contactDetails || item.participant || booking.participant || item.contact || booking.contact || {};
+  const participantName = participant.name || {};
+  const staff = slot.resource || item.resource || booking.resource || item.staffMember || booking.staffMember || {};
+  const service = item.service || booking.service || {};
+  const location = slot.location || schedule.location || item.location || booking.location || {};
+  return {
+    id: booking.id || item.id,
+    status: booking.status || item.status,
+    customerName: firstText(participant.fullName, participant.name && typeof participant.name === "string" ? participant.name : "", joinName(participant.firstName, participant.lastName), joinName(participantName.first, participantName.last)),
+    customerEmail: firstText(participant.email, participant.emailAddress, booking.customerEmail),
+    customerPhone: firstText(participant.phone, participant.phoneNumber),
+    studentEmails: uniqueEmails([participant.email, participant.emailAddress, booking.customerEmail]),
+    serviceName: firstText(booking.title, service.name, service.serviceName, session.serviceName, booking.serviceName),
+    serviceId: firstText(slot.serviceId, schedule.serviceId, service.id, service._id, booking.serviceId),
+    staffName: firstText(staff.name, staff.fullName, booking.staffName),
+    staffEmail: firstText(staff.email, booking.staffEmail),
+    startDate: firstText(slot.startDate, schedule.firstSessionStart, booking.startDate, booking.startTime),
+    endDate: firstText(slot.endDate, schedule.lastSessionEnd, booking.endDate, booking.endTime),
+    location: firstText(location.name, location.formattedAddress, booking.location),
+    locationId: firstText(location.id, booking.locationId),
+    modality: firstText(location.locationType, booking.modality),
+    participantsCount: booking.totalParticipants || booking.participantsCount || item.participantsCount || 1,
+    updatedDate: booking.updatedDate || item.updatedDate,
+    createdDate: booking.createdDate || item.createdDate,
+  };
+}
+
+/* La acción "Enviar solicitud HTTP" de Wix Automations puede envolver el
+   resultado de la acción anterior de distintas maneras. Buscamos la lista
+   sin depender de un solo nombre de campo para que el primer envío pueda ser
+   "Toda la carga útil". */
+function getWixAutomationBookings(...payloads) {
+  const paths = [
+    (value) => value,
+    (value) => value && value.bookings,
+    (value) => value && value.extendedBookings,
+    (value) => value && value.data,
+    (value) => value && value.data && value.data.bookings,
+    (value) => value && value.data && value.data.extendedBookings,
+    (value) => value && value.result,
+    (value) => value && value.result && value.result.bookings,
+    (value) => value && value.result && value.result.extendedBookings,
+    (value) => value && value.output,
+    (value) => value && value.output && value.output.bookings,
+    (value) => value && value.output && value.output.extendedBookings,
+  ];
+  for (const payload of payloads) {
+    for (const getValue of paths) {
+      const candidate = getValue(payload);
+      if (Array.isArray(candidate)) return candidate;
+    }
+  }
+  return [];
+}
+
+async function saveWixAutomationBatch(db, items) {
+  let batch = db.batch();
+  let writes = 0;
+  let imported = 0;
+  const importedBookings = [];
+  const now = admin.firestore.FieldValue.serverTimestamp();
+
+  for (const item of items) {
+    const booking = normalizeBooking(wixApiBookingToPayload(item));
+    if (!booking.bookingId || !booking.startDate) continue;
+
+    batch.set(db.collection("calendarioWix").doc(booking.bookingId), {
+      ...booking,
+      source: "wix-automation-sync",
+      wixAutomationSyncedAt: now,
+      updatedAt: now,
+      receivedAt: now,
+    }, { merge: true });
+    writes += 1;
+    imported += 1;
+    importedBookings.push(booking);
+
+    if (writes >= 400) {
+      await batch.commit();
+      batch = db.batch();
+      writes = 0;
+    }
+  }
+  if (writes) await batch.commit();
+
+  /* La sincronizaciÃ³n masiva no pasa por el flujo del webhook individual.
+     Cuando Wix reasigna una clase puede conservar la reserva anterior con otro
+     ID, por lo que hay que retirar esa versiÃ³n tambiÃ©n aquÃ­. Excluimos las
+     reservas que llegaron en este mismo lote: si Wix devuelve dos clases
+     reales con el mismo grupo/horario, no las cancelamos por el orden en que
+     fueron procesadas. */
+  const incomingIds = new Set(importedBookings.map((booking) => booking.bookingId));
+  let superseded = 0;
+  for (const booking of importedBookings) {
+    if (normalizeStatus(booking.status) === "cancelled") continue;
+    const duplicates = await findDuplicateSlotBookings(db, booking);
+    const staleDuplicates = duplicates.filter((doc) => !incomingIds.has(doc.id));
+    if (!staleDuplicates.length) continue;
+
+    const dedupeBatch = db.batch();
+    staleDuplicates.forEach((doc) => {
+      dedupeBatch.set(doc.ref, {
+        status: "cancelled",
+        supersededByBookingId: booking.bookingId,
+        supersededAt: now,
+        cancellationReceivedAt: now,
+        updatedAt: now,
+        dedupedBy: "wix-automation-sync",
+      }, { merge: true });
+    });
+    await dedupeBatch.commit();
+    superseded += staleDuplicates.length;
+  }
+  return { imported, superseded };
+}
+
+exports.syncWixBookings = onCall(
+  { region: "us-central1", secrets: ["WIX_AUTOMATION_TRIGGER_URL"], timeoutSeconds: 60 },
+  async (request) => {
+    const caller = normalizeEmail(request.auth?.token?.email);
+    if (!caller || !ADMIN_EMAILS.has(caller)) {
+      throw new HttpsError("permission-denied", "Solo coordinación puede sincronizar con Wix.");
+    }
+    /* Ruta preferida: el Hub dispara la automatización de Wix, la cual
+       consulta Bookings y devuelve el lote al webhook. No requiere API key. */
+    const automationUrl = cleanText(process.env.WIX_AUTOMATION_TRIGGER_URL);
+    if (!automationUrl) {
+      throw new HttpsError("failed-precondition", "Falta configurar WIX_AUTOMATION_TRIGGER_URL en Firebase.");
+    }
+    const requestedAt = new Date();
+    const defaultEnd = new Date(requestedAt.getTime() + (90 * 24 * 60 * 60 * 1000));
+    const startDate = cleanText(request.data?.startDate) || requestedAt.toISOString();
+    const endDate = cleanText(request.data?.endDate) || defaultEnd.toISOString();
+    const automationResponse = await fetch(automationUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ startDate, endDate }),
+    });
+    const automationResponseText = await automationResponse.text().catch(() => "");
+    if (!automationResponse.ok) {
+      console.error("Wix automation trigger failed", {
+        status: automationResponse.status,
+        response: automationResponseText.slice(0, 500),
+      });
+      throw new HttpsError("internal", `Wix no pudo iniciar la sincronización (${automationResponse.status}).`);
+    }
+    await admin.firestore().collection("calendarioWixSyncLogs").add({
+      source: "wix-automation-trigger",
+      startDate,
+      endDate,
+      requestedBy: caller,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return { ok: true, queued: true, startDate, endDate };
+
+    /* Conservado como referencia de la integración directa anterior. */
+    const apiKey = cleanText(process.env.WIX_API_KEY);
+    const siteId = cleanText(process.env.WIX_SITE_ID);
+    if (!apiKey || !siteId) {
+      throw new HttpsError("failed-precondition", "Faltan los secretos WIX_API_KEY y WIX_SITE_ID en Firebase.");
+    }
+
+    const records = [];
+    let cursor = "";
+    // Wix entrega hasta 100 por página. Limitamos a 10 páginas por ejecución
+    // para mantener la llamada del botón predecible (máximo 1.000 reservas).
+    for (let page = 0; page < 10; page += 1) {
+      const response = await fetch("https://www.wixapis.com/_api/bookings-reader/v2/extended-bookings/query", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: apiKey, "wix-site-id": siteId },
+        body: JSON.stringify({ query: { cursorPaging: { limit: 100, ...(cursor ? { cursor } : {}) } }, withBookingAllowedActions: false }),
+      });
+      const responseBody = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        console.error("Wix API sync failed", response.status, responseBody);
+        throw new HttpsError("internal", `Wix respondió ${response.status}. Revisa permisos de la API key.`);
+      }
+      records.push(...(responseBody.extendedBookings || responseBody.bookings || responseBody.items || []));
+      cursor = responseBody.pagingMetadata?.cursors?.next || responseBody.nextCursor?.cursors?.next || "";
+      if (!cursor) break;
+    }
+    const db = admin.firestore();
+    let batch = db.batch();
+    let writes = 0;
+    let imported = 0;
+    const now = admin.firestore.FieldValue.serverTimestamp();
+    for (const item of records) {
+      const normalized = normalizeBooking(wixApiBookingToPayload(item));
+      if (!normalized.bookingId || !normalized.startDate) continue;
+      batch.set(db.collection("calendarioWix").doc(normalized.bookingId), {
+        ...normalized,
+        source: "wix-api-sync",
+        wixApiSyncedAt: now,
+        wixApiSyncedBy: caller,
+        rawWixApi: item,
+        updatedAt: now,
+      }, { merge: true });
+      writes += 1;
+      imported += 1;
+      if (writes >= 400) {
+        await batch.commit();
+        batch = db.batch();
+        writes = 0;
+      }
+    }
+    if (writes) await batch.commit();
+    await db.collection("calendarioWixSyncLogs").add({ source: "wix-api", imported, received: records.length, requestedBy: caller, createdAt: now });
+    return { ok: true, imported, received: records.length };
+  }
+);
+
 async function findMatchingActiveBookings(db, booking) {
   if (!booking.startDate || !booking.customerEmail || !booking.serviceName) return [];
 
@@ -451,7 +674,12 @@ function slotMinute(value) {
 async function findDuplicateSlotBookings(db, booking) {
   if (!booking.startDate || !booking.serviceName) return [];
   const identity = groupIdentity(booking);
-  if (!identity) return [];
+  const isExplicitUpdate = ["updated", "rescheduled"].includes(normalizeStatus(booking.status));
+  /* En algunas actualizaciones Wix omite el correo del estudiante. Si el
+     evento declara que es una actualización/reagendamiento, servicio y misma
+     franja son un respaldo seguro para retirar la versión anterior, incluso
+     cuando no podemos construir el roster. */
+  if (!identity && !isExplicitUpdate) return [];
 
   const startMs = timestampMillis(booking.startDate);
   if (!startMs) return [];
@@ -464,8 +692,9 @@ async function findDuplicateSlotBookings(db, booking) {
     if (doc.id === booking.bookingId) return false;
     const d = doc.data();
     if (normalizeStatus(d.status) === "cancelled") return false;
-    return slotMinute(d.startDate) === slotMinute(booking.startDate) &&
-      groupIdentity(d) === identity;
+    if (slotMinute(d.startDate) !== slotMinute(booking.startDate)) return false;
+    if (identity && groupIdentity(d) === identity) return true;
+    return isExplicitUpdate && cleanText(d.serviceName) === booking.serviceName;
   });
 }
 
@@ -518,6 +747,29 @@ exports.wixBookingWebhook = onRequest(
           bodyKeys: payload && typeof payload === "object" ? Object.keys(payload).slice(0, 40) : [],
         });
         return res.status(401).json({ ok: false, error: "Unauthorized" });
+      }
+
+      /* Sincronización manual: la acción de Wix consulta un rango y envía
+         todo el arreglo en un solo POST. Se guarda por bookingId, por lo que
+         reenviar una página no duplica clases. */
+      const automationBookings = getWixAutomationBookings(rawPayload, payload);
+      if (automationBookings.length) {
+        const db = admin.firestore();
+        const sync = await saveWixAutomationBatch(db, automationBookings);
+        await db.collection("calendarioWixSyncLogs").add({
+          source: "wix-automation-http",
+          received: automationBookings.length,
+          imported: sync.imported,
+          superseded: sync.superseded,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        return res.status(200).json({
+          ok: true,
+          batch: true,
+          received: automationBookings.length,
+          imported: sync.imported,
+          superseded: sync.superseded,
+        });
       }
 
       const forcedStatus = getForcedStatus(req, payload);
@@ -811,7 +1063,7 @@ exports.wixBookingWebhook = onRequest(
      - Limitar por rango de fechas (recomendado):
          &from=2026-06-01&to=2026-07-31
    ============================================================ */
-exports.dedupeCalendarioWix = onRequest(async (req, res) => {
+exports.dedupeCalendarioWix = onRequest({ secrets: ["WIX_WEBHOOK_SECRET"] }, async (req, res) => {
   try {
     const secret =
       req.get("x-musicala-secret") ||
@@ -929,6 +1181,13 @@ exports.dedupeCalendarioWix = onRequest(async (req, res) => {
     return res.status(500).json({ ok: false, error: error.message || "Internal server error" });
   }
 });
+
+const ADMIN_EMAILS = new Set([
+  "alekcaballeromusic@gmail.com",
+  "catalina.medina.leal@gmail.com",
+  "musicalaasesor@gmail.com",
+  "adminmusicala@gmail.com",
+]);
 
 /*
   ============================================================

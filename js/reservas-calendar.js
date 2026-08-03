@@ -77,7 +77,7 @@ const SLOT_MAX_TIME = "21:30:00";
 const DEFAULT_DURATION_MIN = 60;
 const CSV_BATCH_SIZE = 450;
 const ROOM_ASSIGNMENTS_COLLECTION = "roomAssignments";
-const ACADEMIC_LOG_URL = "https://musicala.github.io/docenteshub/";
+const ACADEMIC_LOG_URL = "https://wixbookingsmusicala.web.app/docenteshub/";
 const ROOMS = [
   "Salon 1: Baile",
   "Salon 2: Artes",
@@ -439,7 +439,7 @@ function uniqueParticipants(participants) {
   });
 }
 
-export function initReservasCalendar({ container, db, userEmail, loadStudentHubData, onDisplayModeChange }) {
+export function initReservasCalendar({ container, db, userEmail, loadStudentHubData, syncWixBookings, onDisplayModeChange }) {
   if (!container) throw new Error("[ReservasCalendar] Falta container.");
   if (!db) throw new Error("[ReservasCalendar] Falta instancia de Firestore (db).");
   if (!userEmail) throw new Error("[ReservasCalendar] Falta userEmail.");
@@ -457,12 +457,14 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     bookings: new Map(),      // bookingId -> data del rango visible
     staffLinks: new Map(),    // nombre normalizado de Wix/CSV -> email Hub
     roomAssignments: new Map(), // groupKey -> asignacion de salon
+    visibleRange: null,         // rango que se puede volver a consultar manualmente
     /* Coordinación y administración comienzan viendo toda la agenda. Así no
        parece que faltaran clases cuando el admin también es docente; puede
        cambiar a "Mis clases" desde el filtro si lo necesita. */
     filters: { alcance: isAdvisor ? "all" : "mine", docente: "", estado: "", servicio: "", especial: "" },
     displayMode: "calendar",
-    roomsView: isAdmin ? "table" : "live",
+    // Coordinación entra a Salones viendo primero el personal y su jornada.
+    roomsView: isAdmin ? "teachers" : "live",
     roomsSearch: "",
     roomsDate: null,
     destroyed: false,
@@ -483,6 +485,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
           <button type="button" class="mcal__mode-button is-active" data-mcal-mode="calendar">Calendario</button>
           <button type="button" class="mcal__mode-button" data-mcal-mode="rooms">Salones</button>
         </div>
+        <button type="button" class="mcal__refresh-button" id="mcal-refresh-button" aria-label="Actualizar las clases visibles">↻ Actualizar clases</button>
         ${isAdmin ? renderAdminFiltersHTML() : ""}
       </header>
       <div class="mcal__legend" role="note">
@@ -551,6 +554,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
             <option value="">—</option>
             <option value="sin-docente">Sin docente</option>
             <option value="canceladas">Solo canceladas</option>
+            <option value="ocultas">Historial de versiones ocultas</option>
             <option value="incompletas">Datos incompletos</option>
           </select>
         </label>
@@ -560,6 +564,8 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
           <button type="button" id="mcal-csv-button">Subir CSV</button>
         </label>
         <p class="mcal__upload-status" id="mcal-upload-status" aria-live="polite"></p>
+        <button type="button" class="mcal__settings-button" id="mcal-wix-sync-button">Sincronizar Wix</button>
+        <button type="button" class="mcal__settings-button" id="mcal-student-search-button">Buscar estudiante</button>
         <button type="button" class="mcal__settings-button" id="mcal-staff-settings-button">Vincular docentes <span class="mcal__settings-badge" id="mcal-staff-pending-badge" hidden></span></button>
       </div>
     `;
@@ -804,12 +810,13 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
 
   /* ------------------- Firestore: rango --------------------- */
 
-  function subscribeToRange(rangeStart, rangeEnd) {
+  function subscribeToRange(rangeStart, rangeEnd, { force = false } = {}) {
     if (state.destroyed) return;
 
     const key = `${rangeStart.getTime()}-${rangeEnd.getTime()}`;
-    if (key === state.currentRangeKey) return; // mismo rango: no re-suscribir
+    if (!force && key === state.currentRangeKey) return; // mismo rango: no re-suscribir
     state.currentRangeKey = key;
+    state.visibleRange = { start: new Date(rangeStart), end: new Date(rangeEnd) };
 
     // 1) Cancelar el listener anterior SIEMPRE antes de abrir otro
     if (state.unsubscribe) {
@@ -841,19 +848,29 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
         );
 
     const applySnapshot = async (snap) => {
-        if (roomsEl) delete roomsEl.dataset.loadError;
-        state.bookings.clear();
-        snap.forEach((doc) => {
-          state.bookings.set(doc.id, { ...doc.data(), _docId: doc.id });
-        });
+      // Ignora respuestas tardías de un rango que el usuario ya cambió.
+      if (state.currentRangeKey !== key) return;
+      if (roomsEl) delete roomsEl.dataset.loadError;
+      state.bookings.clear();
+      snap.forEach((doc) => {
+        state.bookings.set(doc.id, { ...doc.data(), _docId: doc.id });
+      });
+
+      // La agenda nunca debe depender de lecturas auxiliares: mostramos las
+      // reservas inmediatamente y después enriquecemos salones/vínculos.
+      renderEvents();
+      try {
         if (isAdmin) {
           await refreshStaffLinks();
           await backfillVisibleStaffEmails();
         }
         await refreshRoomAssignments(rangeStart, rangeEnd);
         if (isAdmin) refreshAdminFilterOptions();
-        renderEvents();
-      };
+      } catch (error) {
+        console.warn("[ReservasCalendar] No se pudo completar la información auxiliar:", error);
+      }
+      if (state.currentRangeKey === key) renderEvents();
+    };
 
     const handleLoadError = (err) => {
         // Si Firestore pide un índice compuesto, la consola del navegador
@@ -874,8 +891,66 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
 
     /* Fuerza una lectura actual desde Firestore al abrir o cambiar de rango.
        El listener sigue activo para recibir cambios posteriores. */
-    getDocsFromServer(q).then(applySnapshot).catch(handleLoadError);
+    const serverLoad = getDocsFromServer(q).then(applySnapshot).catch(async (serverError) => {
+      // Cuando el servidor no responde al abrir la app, Firestore puede tener
+      // una copia local válida. La usamos antes de declarar la agenda vacía.
+      try {
+        const cachedSnapshot = await getDocs(q);
+        await applySnapshot(cachedSnapshot);
+      } catch (_) {
+        handleLoadError(serverError);
+      }
+    });
     state.unsubscribe = onSnapshot(q, applySnapshot, handleLoadError);
+    return serverLoad;
+  }
+
+  async function refreshVisibleClasses() {
+    const button = container.querySelector("#mcal-refresh-button");
+    const view = state.calendar?.view;
+    const range = state.visibleRange || (view ? { start: view.activeStart, end: view.activeEnd } : null);
+    if (!range || state.destroyed) return;
+
+    if (button) {
+      button.disabled = true;
+      button.textContent = "↻ Actualizando…";
+    }
+    try {
+      await subscribeToRange(range.start, range.end, { force: true });
+    } finally {
+      if (button && !state.destroyed) {
+        button.disabled = false;
+        button.textContent = "↻ Actualizar clases";
+      }
+    }
+  }
+
+  async function syncClassesFromWix() {
+    if (!isAdmin || typeof syncWixBookings !== "function") return;
+    const button = container.querySelector("#mcal-wix-sync-button");
+    const originalText = button?.textContent || "Sincronizar Wix";
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Consultando Wix…";
+    }
+    try {
+      const result = await syncWixBookings();
+      if (result?.queued) {
+        window.alert("La consulta fue enviada a Wix. Las clases aparecerán en unos segundos; luego usa Actualizar clases.");
+        return;
+      }
+      await refreshVisibleClasses();
+      const imported = Number(result?.imported || 0);
+      window.alert(`Wix respondió y se sincronizaron ${imported} reserva(s).`);
+    } catch (error) {
+      console.error("[ReservasCalendar] No se pudo sincronizar Wix:", error);
+      window.alert(error?.message || "No se pudo consultar Wix. Revisa la configuración de la integración.");
+    } finally {
+      if (button && !state.destroyed) {
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+    }
   }
 
   /* ---------------- Reservas → eventos FC ------------------- */
@@ -950,10 +1025,13 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     if (!isAdmin) return statusKey !== "cancelled";
 
     const f = state.filters;
+    const wantsHiddenHistory = f.especial === "ocultas";
     const wantsCancelled = f.especial === "canceladas" || f.estado === "cancelled";
 
-    if (statusKey === "cancelled" && !wantsCancelled) return false;
-    if (wantsCancelled && statusKey !== "cancelled") return false;
+    if (!wantsHiddenHistory) {
+      if (statusKey === "cancelled" && !wantsCancelled) return false;
+      if (wantsCancelled && statusKey !== "cancelled") return false;
+    }
 
     if (f.alcance !== "all" && !bookingBelongsToEmail(b, email)) return false;
 
@@ -964,6 +1042,46 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     if (f.estado && statusKey !== f.estado) return false;
     if (f.servicio && (b.serviceName || "") !== f.servicio) return false;
     return true;
+  }
+
+  function isHiddenHistoryMode() {
+    return isAdmin && state.filters.especial === "ocultas";
+  }
+
+  function versionIdentity(booking) {
+    const start = getBookingStart(booking);
+    const student = String(booking.customerEmail || "").trim().toLowerCase() || normalizeGroupText(booking.customerName);
+    if (!start || !student) return "";
+    return [start.getFullYear(), start.getMonth() + 1, start.getDate(), start.getHours(), start.getMinutes(), normalizeGroupText(booking.serviceName), student].join("|");
+  }
+
+  function versionPriority(booking) {
+    if (booking.supersededByBookingId || booking.supersededBy) return -1;
+    const status = normalizeStatus(booking.status);
+    if (status === "rescheduled") return 4;
+    if (status === "updated") return 3;
+    if (status === "confirmed") return 2;
+    if (status === "pending") return 1;
+    return 0;
+  }
+
+  function hiddenBookingIds() {
+    const groups = new Map();
+    state.bookings.forEach((booking) => {
+      const key = versionIdentity(booking);
+      if (!key) return;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(booking);
+    });
+    const hidden = new Set();
+    groups.forEach((versions) => {
+      const replacement = versions.some((booking) => booking.supersededByBookingId || booking.supersededBy || ["updated", "rescheduled"].includes(normalizeStatus(booking.status)));
+      if (versions.length < 2 || !replacement) return;
+      const current = [...versions].sort((a, b) => versionPriority(b) - versionPriority(a) || (toDateSafe(b.updatedAt)?.getTime() || 0) - (toDateSafe(a.updatedAt)?.getTime() || 0))[0];
+      versions.forEach((booking) => { if (booking._docId !== current._docId) hidden.add(booking._docId); });
+    });
+    state.bookings.forEach((booking) => { if (booking.supersededByBookingId || booking.supersededBy) hidden.add(booking._docId); });
+    return hidden;
   }
 
   function bookingBelongsToEmail(booking, targetEmail) {
@@ -1032,6 +1150,8 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
   function renderEvents() {
     if (state.destroyed) return;
     const grouped = new Map();
+    const hiddenIds = hiddenBookingIds();
+    const historyMode = isHiddenHistoryMode();
     const cancelledMatchKeys = new Set();
     state.bookings.forEach((b) => {
       if (normalizeStatus(b.status) === "cancelled") {
@@ -1041,7 +1161,8 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     });
     state.bookings.forEach((b) => {
       if (!passesAdminFilters(b)) return;
-      if (normalizeStatus(b.status) !== "cancelled" && cancelledMatchKeys.has(getBookingCancellationMatchKey(b))) return;
+      if (historyMode ? !hiddenIds.has(b._docId) : hiddenIds.has(b._docId)) return;
+      if (!historyMode && normalizeStatus(b.status) !== "cancelled" && cancelledMatchKeys.has(getBookingCancellationMatchKey(b))) return;
       const key = getGroupKey(b) || (b.bookingId || b._docId);
       if (!grouped.has(key)) grouped.set(key, []);
       grouped.get(key).push(b);
@@ -1127,6 +1248,8 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
 
   function buildRoomsEvents() {
     const grouped = new Map();
+    const hiddenIds = hiddenBookingIds();
+    const historyMode = isHiddenHistoryMode();
     const cancelledMatchKeys = new Set();
     state.bookings.forEach((b) => {
       if (normalizeStatus(b.status) === "cancelled") {
@@ -1135,8 +1258,9 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       }
     });
     state.bookings.forEach((b) => {
-      if (normalizeStatus(b.status) === "cancelled") return;
-      if (cancelledMatchKeys.has(getBookingCancellationMatchKey(b))) return;
+      if (historyMode ? !hiddenIds.has(b._docId) : hiddenIds.has(b._docId)) return;
+      if (!historyMode && normalizeStatus(b.status) === "cancelled") return;
+      if (!historyMode && cancelledMatchKeys.has(getBookingCancellationMatchKey(b))) return;
       if (isAdmin) {
         if (!passesAdminFilters(b)) return;
       } else if (!bookingBelongsToEmail(b, email)) {
@@ -1169,8 +1293,8 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     roomsEl.innerHTML = `
       <div class="mcal-rooms__head">
         <div>
-          <h3>Asignacion de salones</h3>
-          <p>${isAdmin ? "Organiza todas las clases del dia por salon." : "Tus clases del dia organizadas por salon."}</p>
+          <h3>${state.roomsView === "teachers" ? "Personal del día" : "Asignación de salones"}</h3>
+          <p>${state.roomsView === "teachers" ? "Clases del día agrupadas por docente." : (isAdmin ? "Organiza todas las clases del día por salón." : "Tus clases del día organizadas por salón.")}</p>
         </div>
         <div class="mcal-rooms__nav">
           ${isAdmin ? `<button type="button" data-rooms-autofill>Relleno automatico</button>` : ""}
@@ -1197,7 +1321,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
             ${renderRoomsTab("table", "Tabla")}
             ${renderRoomsTab("live", "En vivo")}
             ${renderRoomsTab("rooms", "Salones")}
-            ${renderRoomsTab("teachers", "Docentes")}
+            ${isAdmin ? renderRoomsTab("teachers", "Personal") : ""}
             ${renderRoomsTab("search", "Buscar")}
             ${renderRoomsTab("kpis", "KPIs")}
           </div>
@@ -1302,19 +1426,25 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
   function renderRoomsByTeacher(events) {
     const grouped = new Map();
     events.forEach((event) => {
-      const name = event.extendedProps?.staffName || "Sin docente";
-      if (!grouped.has(name)) grouped.set(name, []);
-      grouped.get(name).push(event);
+      const props = event.extendedProps || {};
+      const key = String(props.staffEmail || props.staffName || "sin-docente").toLowerCase();
+      if (!grouped.has(key)) grouped.set(key, { name: props.staffName || props.staffEmail || "Sin docente", items: [] });
+      grouped.get(key).items.push(event);
     });
+    const teachers = [...grouped.entries()].sort(([, a], [, b]) => a.name.localeCompare(b.name, "es"));
+    const durationSlots = (event) => Math.max(1, Math.ceil((new Date(event.end).getTime() - new Date(event.start).getTime()) / (30 * 60 * 1000)));
+    const teacherCell = (teacherKey, items, slot) => {
+      const startsAtSlot = items.filter((event) => Math.floor(eventStartMinutes(event) / 30) * 30 === slot);
+      const coveredByEarlierClass = items.some((event) => {
+        const startSlot = Math.floor(eventStartMinutes(event) / 30) * 30;
+        return startSlot < slot && slot < startSlot + durationSlots(event) * 30;
+      });
+      if (coveredByEarlierClass) return "";
+      const rowspan = startsAtSlot.length ? Math.max(...startsAtSlot.map(durationSlots)) : 1;
+      return `<td data-teacher-drop="${escapeHTML(teacherKey)}"${rowspan > 1 ? ` rowspan="${rowspan}"` : ""}>${startsAtSlot.map(renderRoomEvent).join("")}</td>`;
+    };
     return `
-      <div class="mcal-teacher-groups">
-        ${[...grouped.entries()].map(([teacher, items]) => `
-          <section class="mcal-teacher-group">
-            <h4>${escapeHTML(teacher)} <span>${items.length}</span></h4>
-            ${items.map(renderRoomListItem).join("")}
-          </section>
-        `).join("") || `<p>No hay clases para mostrar.</p>`}
-      </div>
+      ${teachers.length ? `<div class="mcal-rooms__table-wrap mcal-personal-table-wrap"><table class="mcal-rooms-table mcal-personal-table"><thead><tr><th>Hora</th>${teachers.map(([, teacher]) => `<th>${escapeHTML(teacher.name)} <small>${teacher.items.length}</small></th>`).join("")}</tr></thead><tbody>${buildRoomSlots().map((slot) => `<tr><th>${escapeHTML(formatSlotLabel(slot))}</th>${teachers.map(([teacherKey, teacher]) => teacherCell(teacherKey, teacher.items, slot)).join("")}</tr>`).join("")}</tbody></table></div><p class="mcal-personal-table__help">Arrastra una clase a la columna de otro docente para reasignarla.</p>` : `<p>No hay clases para mostrar.</p>`}
     `;
   }
 
@@ -1673,6 +1803,8 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       : "Agenda completa de docentes";
   }
 
+  container.querySelector("#mcal-refresh-button")?.addEventListener("click", refreshVisibleClasses);
+
   if (isAdmin) {
     container
       .querySelectorAll("#mcal-filters select")
@@ -1682,6 +1814,8 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     });
     container.querySelector("#mcal-csv-upload")?.addEventListener("change", onCsvUpload);
     container.querySelector("#mcal-staff-settings-button")?.addEventListener("click", openStaffSettings);
+    container.querySelector("#mcal-student-search-button")?.addEventListener("click", openStudentSearch);
+    container.querySelector("#mcal-wix-sync-button")?.addEventListener("click", syncClassesFromWix);
     container.querySelector("#mcal-staff-settings")?.addEventListener("click", onStaffSettingsClick);
     container.querySelector("#mcal-staff-save")?.addEventListener("click", saveManualStaffLink);
     container.querySelector("#mcal-staff-apply-links")?.addEventListener("click", applyAllStaffLinksToBookings);
@@ -1782,7 +1916,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
   }
 
   function onRoomDragOver(event) {
-    const dropZone = event.target.closest("[data-room-drop]");
+    const dropZone = event.target.closest("[data-room-drop], [data-teacher-drop]");
     if (!dropZone) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
@@ -1790,13 +1924,13 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
   }
 
   function onRoomDragLeave(event) {
-    const dropZone = event.target.closest("[data-room-drop]");
+    const dropZone = event.target.closest("[data-room-drop], [data-teacher-drop]");
     if (!dropZone || dropZone.contains(event.relatedTarget)) return;
     dropZone.classList.remove("is-drop-target");
   }
 
   async function onRoomDrop(event) {
-    const dropZone = event.target.closest("[data-room-drop]");
+    const dropZone = event.target.closest("[data-room-drop], [data-teacher-drop]");
     if (!dropZone) return;
     event.preventDefault();
     roomsEl?.querySelectorAll(".is-drop-target,.is-dragging").forEach((el) => {
@@ -1810,9 +1944,11 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       payload = {};
     }
 
+    const teacherKey = dropZone.dataset.teacherDrop;
     const target = dropZone.dataset.roomDrop;
-    const roomIndex = target === "unassigned" ? null : Number(target);
-    const message = await saveRoomAssignmentViaDrag(payload.groupKey, payload.bookingId, roomIndex);
+    const message = teacherKey
+      ? await saveTeacherAssignmentViaDrag(payload.groupKey, payload.bookingId, teacherKey)
+      : await saveRoomAssignmentViaDrag(payload.groupKey, payload.bookingId, target === "unassigned" ? null : Number(target));
     if (message) setRoomsNotice(message);
   }
 
@@ -2721,6 +2857,9 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       }
     }
     row("↻", "Última actualización", formatDateTime(updatedAt));
+    if (isAdmin && b.source !== "academic-task") {
+      row("✎", "Edición", `<button type="button" class="mcal-booking-edit" data-booking-edit data-group-key="${escapeHTML(groupKey)}" data-booking-id="${escapeHTML(b.bookingId || b._docId || "")}">Editar clase</button>`, { full: true, html: true });
+    }
     if (isAdmin && !roomAssignment?.automatic) {
       row("⌂", "Asignar salón", renderRoomAssignmentControl(b, groupKey, roomAssignment), { full: true, html: true });
     }
@@ -2765,6 +2904,64 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     return source || "Sin origen";
   }
 
+  function openStudentSearch() {
+    if (!isAdmin) return;
+    modalTitleEl.textContent = "Buscar estudiante";
+    modalBodyEl.innerHTML = `
+      <section class="mcal-student-search">
+        <p>Busca por nombre o correo en todas las reservas que han llegado desde Wix, incluso fuera del rango actual.</p>
+        <form data-student-search-form>
+          <input type="search" data-student-search-input placeholder="Ej. Valentina Gómez o correo@ejemplo.com" autocomplete="off" required>
+          <button type="submit">Buscar</button>
+        </form>
+        <p class="mcal-room-assign__status" data-student-search-status aria-live="polite"></p>
+        <div data-student-search-results></div>
+      </section>`;
+    modalEl.hidden = false;
+    modalBodyEl.querySelector("[data-student-search-form]")?.addEventListener("submit", searchStudentBookings);
+    modalBodyEl.querySelector("[data-student-search-input]")?.focus();
+  }
+
+  async function searchStudentBookings(event) {
+    event.preventDefault();
+    if (!isAdmin) return;
+    const form = event.currentTarget;
+    const input = form.querySelector("[data-student-search-input]");
+    const button = form.querySelector("button");
+    const status = modalBodyEl.querySelector("[data-student-search-status]");
+    const resultsEl = modalBodyEl.querySelector("[data-student-search-results]");
+    const search = normalizeGroupText(input?.value);
+    if (search.length < 2) {
+      if (status) status.textContent = "Escribe al menos dos caracteres.";
+      return;
+    }
+    button.disabled = true;
+    if (status) status.textContent = "Buscando en las reservas recibidas...";
+    if (resultsEl) resultsEl.innerHTML = "";
+    try {
+      const snap = await getDocs(collection(db, COLLECTION_NAME));
+      const matches = snap.docs
+        .map((item) => ({ ...item.data(), _docId: item.id }))
+        .filter((booking) => {
+          const values = [booking.customerName, booking.customerEmail, ...(Array.isArray(booking.studentEmails) ? booking.studentEmails : [])];
+          return values.some((value) => normalizeGroupText(value).includes(search));
+        })
+        .sort((a, b) => (getBookingStart(b)?.getTime() || 0) - (getBookingStart(a)?.getTime() || 0));
+      if (status) status.textContent = matches.length ? `${matches.length} clase(s) encontradas.` : "No hay reservas con ese nombre o correo.";
+      if (resultsEl) {
+        resultsEl.innerHTML = matches.length ? `<ul class="mcal-student-search__results">${matches.map((booking) => {
+          const start = getBookingStart(booking);
+          return `<li><strong>${escapeHTML(booking.customerName || "Estudiante sin nombre")}</strong><span>${escapeHTML(formatDateTime(start))} · ${escapeHTML(booking.serviceName || "Clase")} · ${escapeHTML(booking.staffName || booking.staffEmail || "Sin docente")}</span><small>${escapeHTML(getSourceLabel(booking.source))}${booking.customerEmail ? ` · ${escapeHTML(booking.customerEmail)}` : ""}</small></li>`;
+        }).join("")}</ul>` : `<p class="mcal-student-empty">Si el estudiante debería existir y no aparece aquí, Wix todavía no ha enviado una reserva con su nombre o correo a este calendario.</p>`;
+      }
+    } catch (error) {
+      console.error("[ReservasCalendar] No se pudo buscar estudiante:", error);
+      if (status) status.textContent = humanFirestorePermissionError(error);
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   function renderParticipantsList(participants) {
     const items = uniqueParticipants(participants)
       .map((participant) => `
@@ -2787,7 +2984,187 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       <span class="mcal-participants__actions">
         <button type="button" data-student-view="profile" data-student-email="${encodedEmail}">Ver perfil</button>
         <button type="button" data-student-view="journal" data-student-email="${encodedEmail}">Ver bitácoras</button>
+        ${isAdmin ? `<button type="button" data-student-view="classes" data-student-email="${encodedEmail}">Historial de clases</button>` : ""}
       </span>`;
+  }
+
+  async function renderStudentClassHistory(studentEmail) {
+    if (!isAdmin) return;
+    const normalizedEmail = String(studentEmail || "").trim().toLowerCase();
+    if (!normalizedEmail) throw new Error("Este estudiante no tiene correo vinculado.");
+
+    const snap = await getDocs(query(
+      collection(db, COLLECTION_NAME),
+      where("customerEmail", "==", normalizedEmail)
+    ));
+    const classes = snap.docs
+      .map((item) => ({ ...item.data(), _docId: item.id }))
+      .sort((a, b) => (getBookingStart(b)?.getTime() || 0) - (getBookingStart(a)?.getTime() || 0));
+
+    modalTitleEl.textContent = "Historial de clases";
+    if (!classes.length) {
+      modalBodyEl.innerHTML = `<p class="mcal-student-empty">No encontramos clases anteriores para ${escapeHTML(normalizedEmail)}.</p>`;
+      return;
+    }
+
+    modalBodyEl.innerHTML = `
+      <section class="mcal-class-history">
+        <p class="mcal-class-history__intro">${classes.length} clase(s) registradas para ${escapeHTML(normalizedEmail)}. Puedes abrir una clase para editarla o usarla como base para reprogramar.</p>
+        <ul class="mcal-class-history__list">
+          ${classes.map((booking) => {
+            const start = getBookingStart(booking);
+            const groupKey = getGroupKey(booking) || booking.bookingId || booking._docId;
+            return `<li>
+              <div><strong>${escapeHTML(booking.serviceName || "Clase")}</strong><span>${escapeHTML(formatDateTime(start))} · ${escapeHTML(booking.staffName || booking.staffEmail || "Sin docente")}</span></div>
+              <button type="button" data-booking-rebook data-group-key="${escapeHTML(groupKey)}" data-booking-id="${escapeHTML(booking._docId)}">Editar / reprogramar</button>
+            </li>`;
+          }).join("")}
+        </ul>
+      </section>`;
+  }
+
+  function dateTimeInputValue(date) {
+    if (!date) return "";
+    const offset = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+  }
+
+  async function openBookingEditor(groupKey, bookingId) {
+    if (!isAdmin) return;
+    let bookings = getBookingsForGroup(groupKey, bookingId);
+    if (!bookings.length && bookingId) {
+      const snapshot = await getDoc(doc(db, COLLECTION_NAME, bookingId));
+      if (snapshot.exists()) bookings = [{ ...snapshot.data(), _docId: snapshot.id }];
+    }
+    const base = bookings[0];
+    if (!base) {
+      modalBodyEl.innerHTML = '<p class="mcal-student-empty">No encontré la clase en el rango actualmente visible.</p>';
+      return;
+    }
+    const teachers = await loadHubTeacherOptions();
+    const start = getBookingStart(base);
+    const end = getBookingEnd(base, start);
+    const participants = bookings.map((booking) => ({
+      name: booking.customerName || "",
+      email: booking.customerEmail || (Array.isArray(booking.studentEmails) ? booking.studentEmails[0] : "") || "",
+    }));
+
+    modalTitleEl.textContent = "Editar clase";
+    modalBodyEl.innerHTML = `
+      <form class="mcal-booking-editor" data-booking-editor novalidate data-group-key="${escapeHTML(groupKey)}" data-booking-id="${escapeHTML(bookingId || base._docId || "")}">
+        <p>Los cambios quedan registrados manualmente y se reflejan en la agenda. Para grupos, el docente y horario se actualizan para todos los participantes.</p>
+        <label>Docente<select name="teacher"><option value="">Sin asignar</option>${teachers.map((teacher) => `<option value="${escapeHTML(teacher.email)}" data-label="${escapeHTML(teacher.label)}" ${teacher.email === String(base.staffEmail || "").toLowerCase() ? "selected" : ""}>${escapeHTML(teacher.label)} · ${escapeHTML(teacher.email)}</option>`).join("")}</select></label>
+        <div class="mcal-booking-editor__dates"><label>Inicio<input name="start" type="datetime-local" required value="${dateTimeInputValue(start)}"></label><label>Fin<input name="end" type="datetime-local" required value="${dateTimeInputValue(end)}"></label></div>
+        <fieldset class="mcal-student-editor"><legend>Estudiantes</legend><small>Edítalos directamente en la lista. Para una clase grupal, agrega las filas que necesites.</small><div data-student-list>${participants.map((participant) => `<div class="mcal-student-editor__row" data-student-row><input data-student-name placeholder="Nombre del estudiante" value="${escapeHTML(participant.name)}"><input data-student-email type="text" placeholder="Correo (opcional)" value="${escapeHTML(participant.email)}"></div>`).join("")}</div><button type="button" data-student-add>+ Agregar estudiante</button></fieldset>
+        <div class="mcal-booking-editor__actions"><button type="button" data-booking-edit-cancel>Cancelar</button><button type="button" data-booking-save>Guardar cambios</button></div>
+        <p class="mcal-room-assign__status" data-booking-edit-status aria-live="polite"></p>
+      </form>`;
+    modalEl.hidden = false;
+    modalBodyEl.querySelector("[data-booking-edit-cancel]")?.addEventListener("click", closeDetail);
+    const editor = modalBodyEl.querySelector("[data-booking-editor]");
+    editor?.addEventListener("submit", saveBookingEdit);
+    modalBodyEl.querySelector("[data-booking-save]")?.addEventListener("click", () => saveBookingEdit({ preventDefault() {}, currentTarget: editor }));
+    modalBodyEl.querySelector("[data-student-add]")?.addEventListener("click", () => {
+      const list = modalBodyEl.querySelector("[data-student-list]");
+      if (!list) return;
+      const row = document.createElement("div");
+      row.className = "mcal-student-editor__row";
+      row.dataset.studentRow = "";
+      row.innerHTML = '<input data-student-name placeholder="Nombre del estudiante"><input data-student-email type="text" placeholder="Correo (opcional)">';
+      list.appendChild(row);
+      row.querySelector("[data-student-name]")?.focus();
+    });
+  }
+
+  async function saveBookingEdit(event) {
+    event.preventDefault();
+    if (!isAdmin) return;
+    const form = event.currentTarget;
+    const status = form.querySelector("[data-booking-edit-status]");
+    let bookings = getBookingsForGroup(form.dataset.groupKey || "", form.dataset.bookingId || "");
+    if (!bookings.length && form.dataset.bookingId) {
+      const snapshot = await getDoc(doc(db, COLLECTION_NAME, form.dataset.bookingId));
+      if (snapshot.exists()) bookings = [{ ...snapshot.data(), _docId: snapshot.id }];
+    }
+    const start = new Date(form.elements.start.value);
+    const end = new Date(form.elements.end.value);
+    const selected = form.elements.teacher.selectedOptions[0];
+    const students = [...form.querySelectorAll("[data-student-row]")].map((row) => ({
+      name: String(row.querySelector("[data-student-name]")?.value || "").trim(),
+      email: String(row.querySelector("[data-student-email]")?.value || "").trim().toLowerCase(),
+    }));
+    if (!bookings.length || !Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) {
+      if (status) status.textContent = "Revisa que la fecha y hora de finalización sean válidas.";
+      return;
+    }
+    if (students.length < bookings.length || students.some((student) => !student.name)) {
+      if (status) status.textContent = `La lista debe conservar los ${bookings.length} estudiante(s) actuales y cada uno debe tener nombre.`;
+      return;
+    }
+    const submit = form.querySelector("[data-booking-save]");
+    submit.disabled = true;
+    if (status) status.textContent = "Guardando cambios...";
+    try {
+      const teacherEmail = String(form.elements.teacher.value || "").trim().toLowerCase();
+      const teacherName = teacherEmail ? String(selected?.dataset.label || selected?.textContent || teacherEmail).split(" · ")[0].trim() : "";
+      const batch = writeBatch(db);
+      bookings.forEach((booking, index) => {
+        const student = students[index];
+        batch.set(doc(db, COLLECTION_NAME, booking._docId || booking.bookingId), {
+          staffEmail: teacherEmail,
+          staffName: teacherName,
+          startDate: Timestamp.fromDate(start),
+          endDate: Timestamp.fromDate(end),
+          customerName: student.name,
+          customerEmail: student.email,
+          studentEmails: student.email ? [student.email] : [],
+          manuallyEditedAt: serverTimestamp(),
+          manuallyEditedBy: email,
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+      });
+      students.slice(bookings.length).forEach((student) => {
+        const newBooking = doc(collection(db, COLLECTION_NAME));
+        batch.set(newBooking, {
+          bookingId: newBooking.id,
+          serviceName: bookings[0].serviceName || "Clase",
+          staffEmail: teacherEmail,
+          staffName: teacherName,
+          startDate: Timestamp.fromDate(start),
+          endDate: Timestamp.fromDate(end),
+          customerName: student.name,
+          customerEmail: student.email,
+          studentEmails: student.email ? [student.email] : [],
+          status: bookings[0].status || "confirmed",
+          modality: bookings[0].modality || "",
+          location: bookings[0].location || "",
+          roomIndex: bookings[0].roomIndex ?? null,
+          roomName: bookings[0].roomName || "",
+          source: "manual-group-member",
+          manuallyEditedAt: serverTimestamp(),
+          manuallyEditedBy: email,
+          updatedAt: serverTimestamp(),
+        });
+      });
+      const assignment = state.roomAssignments.get(form.dataset.groupKey || "");
+      if (assignment) {
+        batch.set(doc(db, ROOM_ASSIGNMENTS_COLLECTION, roomAssignmentDocId(form.dataset.groupKey)), {
+          staffEmail: teacherEmail,
+          staffName: teacherName,
+          startDate: Timestamp.fromDate(start),
+          endDate: Timestamp.fromDate(end),
+          updatedAt: serverTimestamp(),
+          updatedBy: email,
+        }, { merge: true });
+      }
+      await batch.commit();
+      closeDetail();
+      await refreshVisibleClasses();
+    } catch (error) {
+      console.error("[ReservasCalendar] No se pudo editar la clase:", error);
+      if (status) status.textContent = humanFirestorePermissionError(error);
+      submit.disabled = false;
+    }
   }
 
   function renderRoomAssignmentControl(booking, groupKey, assignment) {
@@ -2831,11 +3208,31 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       await saveRoomAssignmentFromModal(roomButton);
       return;
     }
+    const editButton = e.target.closest("[data-booking-edit]");
+    if (editButton) {
+      await openBookingEditor(editButton.dataset.groupKey || "", editButton.dataset.bookingId || "");
+      return;
+    }
+    const rebookButton = e.target.closest("[data-booking-rebook]");
+    if (rebookButton) {
+      await openBookingEditor(rebookButton.dataset.groupKey || "", rebookButton.dataset.bookingId || "");
+      return;
+    }
     const studentButton = e.target.closest("[data-student-view]");
     if (!studentButton) return;
 
     const email = decodeURIComponent(studentButton.dataset.studentEmail || "");
     const view = studentButton.dataset.studentView;
+    if (view === "classes") {
+      studentButton.disabled = true;
+      try {
+        await renderStudentClassHistory(email);
+      } catch (error) {
+        modalTitleEl.textContent = "No se pudo cargar el historial";
+        modalBodyEl.innerHTML = `<p class="mcal-student-empty">${escapeHTML(error?.message || "Intenta nuevamente.")}</p>`;
+      }
+      return;
+    }
     if (typeof loadStudentHubData !== "function") return;
 
     studentButton.disabled = true;
@@ -3102,6 +3499,57 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     });
     renderEvents();
     return `Salon guardado: ${ROOMS[numericRoomIndex]}.`;
+  }
+
+  async function saveTeacherAssignmentViaDrag(groupKey, bookingId, teacherKey) {
+    if (!isAdmin) return "Solo admin puede reasignar docentes.";
+    const bookings = getBookingsForGroup(groupKey, bookingId);
+    const base = bookings[0];
+    if (!base) return "No encontré la reserva visible.";
+    const target = [...state.bookings.values()].find((booking) => {
+      const key = String(booking.staffEmail || booking.staffName || "sin-docente").toLowerCase();
+      return key === teacherKey;
+    });
+    if (!target) return "No encontré el docente de destino.";
+    const targetEmail = String(target.staffEmail || "").trim().toLowerCase();
+    const targetName = target.staffName || targetEmail || "Sin docente";
+    if (String(base.staffEmail || base.staffName || "").toLowerCase() === teacherKey) return "La clase ya pertenece a ese docente.";
+
+    try {
+      const batch = writeBatch(db);
+      bookings.forEach((booking) => {
+        batch.set(doc(db, COLLECTION_NAME, booking._docId || booking.bookingId), {
+          staffEmail: targetEmail,
+          staffName: targetName,
+          manuallyEditedAt: serverTimestamp(),
+          manuallyEditedBy: email,
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+      });
+      const assignment = state.roomAssignments.get(groupKey);
+      if (assignment) {
+        batch.set(doc(db, ROOM_ASSIGNMENTS_COLLECTION, roomAssignmentDocId(groupKey)), {
+          staffEmail: targetEmail,
+          staffName: targetName,
+          updatedAt: serverTimestamp(),
+          updatedBy: email,
+        }, { merge: true });
+      }
+      await batch.commit();
+      bookings.forEach((booking) => {
+        booking.staffEmail = targetEmail;
+        booking.staffName = targetName;
+      });
+      if (assignment) {
+        assignment.staffEmail = targetEmail;
+        assignment.staffName = targetName;
+      }
+      renderEvents();
+      return `Clase reasignada a ${targetName}.`;
+    } catch (error) {
+      console.error("[ReservasCalendar] No se pudo reasignar la clase:", error);
+      return humanFirestorePermissionError(error);
+    }
   }
 
   /* ------------------ Relleno automático de salones ------------------ */

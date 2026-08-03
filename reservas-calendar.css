@@ -49,6 +49,22 @@
   color: #5a5a6e;
 }
 
+.mcal__refresh-button {
+  align-self: end;
+  padding: 0.58rem 0.8rem;
+  border: 1px solid rgba(12, 65, 196, 0.24);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--mcal-primary);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mcal__refresh-button:hover { background: #f3f6ff; }
+.mcal__refresh-button:disabled { cursor: wait; opacity: 0.65; }
+
 /* Cuando un admin-docente elige "Mis clases", se presenta como docente:
    agenda personal, sin controles propios de coordinación. */
 .mcal.is-teacher-view [data-mcal-mode="rooms"] {

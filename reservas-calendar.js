@@ -76,7 +76,7 @@ const SLOT_MAX_TIME = "21:30:00";
 const DEFAULT_DURATION_MIN = 60;
 const CSV_BATCH_SIZE = 450;
 const ROOM_ASSIGNMENTS_COLLECTION = "roomAssignments";
-const ACADEMIC_LOG_URL = "https://musicala.github.io/docenteshub/";
+const ACADEMIC_LOG_URL = "https://wixbookingsmusicala.web.app/docenteshub/";
 const ROOMS = [
   "Salon 1: Baile",
   "Salon 2: Artes",
@@ -456,6 +456,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     bookings: new Map(),      // bookingId -> data del rango visible
     staffLinks: new Map(),    // nombre normalizado de Wix/CSV -> email Hub
     roomAssignments: new Map(), // groupKey -> asignacion de salon
+    visibleRange: null,         // rango que se puede volver a consultar manualmente
     /* Coordinación y administración comienzan viendo toda la agenda. Así no
        parece que faltaran clases cuando el admin también es docente; puede
        cambiar a "Mis clases" desde el filtro si lo necesita. */
@@ -482,6 +483,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
           <button type="button" class="mcal__mode-button is-active" data-mcal-mode="calendar">Calendario</button>
           <button type="button" class="mcal__mode-button" data-mcal-mode="rooms">Salones</button>
         </div>
+        <button type="button" class="mcal__refresh-button" id="mcal-refresh-button" aria-label="Actualizar las clases visibles">↻ Actualizar clases</button>
         ${isAdmin ? renderAdminFiltersHTML() : ""}
       </header>
       <div class="mcal__legend" role="note">
@@ -803,12 +805,13 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
 
   /* ------------------- Firestore: rango --------------------- */
 
-  function subscribeToRange(rangeStart, rangeEnd) {
+  function subscribeToRange(rangeStart, rangeEnd, { force = false } = {}) {
     if (state.destroyed) return;
 
     const key = `${rangeStart.getTime()}-${rangeEnd.getTime()}`;
-    if (key === state.currentRangeKey) return; // mismo rango: no re-suscribir
+    if (!force && key === state.currentRangeKey) return; // mismo rango: no re-suscribir
     state.currentRangeKey = key;
+    state.visibleRange = { start: new Date(rangeStart), end: new Date(rangeEnd) };
 
     // 1) Cancelar el listener anterior SIEMPRE antes de abrir otro
     if (state.unsubscribe) {
@@ -865,6 +868,23 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
         }
       }
     );
+  }
+
+  function refreshVisibleClasses() {
+    const button = container.querySelector("#mcal-refresh-button");
+    const range = state.visibleRange;
+    if (!range || state.destroyed) return;
+    if (button) {
+      button.disabled = true;
+      button.textContent = "↻ Actualizando…";
+    }
+    subscribeToRange(range.start, range.end, { force: true });
+    window.setTimeout(() => {
+      if (button && !state.destroyed) {
+        button.disabled = false;
+        button.textContent = "↻ Actualizar clases";
+      }
+    }, 1000);
   }
 
   /* ---------------- Reservas → eventos FC ------------------- */
@@ -1660,6 +1680,8 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       ? "Tus clases asignadas desde Wix"
       : "Agenda completa de docentes";
   }
+
+  container.querySelector("#mcal-refresh-button")?.addEventListener("click", refreshVisibleClasses);
 
   if (isAdmin) {
     container

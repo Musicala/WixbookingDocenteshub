@@ -49,6 +49,22 @@
   color: #5a5a6e;
 }
 
+.mcal__refresh-button {
+  align-self: end;
+  padding: 0.58rem 0.8rem;
+  border: 1px solid rgba(12, 65, 196, 0.24);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--mcal-primary);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mcal__refresh-button:hover { background: #f3f6ff; }
+.mcal__refresh-button:disabled { cursor: wait; opacity: 0.65; }
+
 /* Cuando un admin-docente elige "Mis clases", se presenta como docente:
    agenda personal, sin controles propios de coordinación. */
 .mcal.is-teacher-view [data-mcal-mode="rooms"] {
@@ -755,6 +771,61 @@
 
 @media (prefers-reduced-motion: reduce) {
   .mcal-modal__panel { animation: none; }
+}
+
+/* EdiciÃ³n de reservas e historial del estudiante (solo coordinaciÃ³n). */
+.mcal-booking-edit,
+.mcal-class-history__list button,
+.mcal-booking-editor button {
+  border: 1px solid rgba(12, 65, 196, 0.24);
+  border-radius: 8px;
+  padding: 0.5rem 0.7rem;
+  background: #fff;
+  color: var(--mcal-primary);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.mcal-booking-editor { display: grid; gap: 0.9rem; }
+.mcal-booking-editor > p { margin: 0; color: #5a5a6e; font-size: 0.9rem; }
+.mcal-booking-editor label { display: grid; gap: 0.35rem; font-weight: 700; }
+.mcal-booking-editor small { font-weight: 400; color: #5a5a6e; }
+.mcal-booking-editor input,
+.mcal-booking-editor select,
+.mcal-booking-editor textarea { width: 100%; box-sizing: border-box; padding: 0.6rem; border: 1px solid #d9dcec; border-radius: 8px; font: inherit; }
+.mcal-booking-editor textarea { resize: vertical; }
+.mcal-booking-editor__dates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+.mcal-booking-editor__actions { display: flex; justify-content: flex-end; gap: 0.65rem; }
+.mcal-booking-editor__actions button[type="submit"] { color: #fff; background: var(--mcal-primary); border-color: var(--mcal-primary); }
+.mcal-student-editor { display: grid; gap: 0.55rem; margin: 0; padding: 0.8rem; border: 1px solid #e2e6f2; border-radius: 10px; }
+.mcal-student-editor legend { padding: 0 0.25rem; font-weight: 700; }
+.mcal-student-editor small { color: #5a5a6e; }
+.mcal-student-editor [data-student-list] { display: grid; gap: 0.5rem; }
+.mcal-student-editor__row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.5rem; }
+.mcal-student-editor [data-student-add] { justify-self: start; }
+.mcal-class-history__intro { margin-top: 0; color: #5a5a6e; }
+.mcal-class-history__list { display: grid; gap: 0.65rem; padding: 0; margin: 0; list-style: none; }
+.mcal-class-history__list li { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; padding: 0.8rem; border: 1px solid #e6e8e8; border-radius: 10px; }
+.mcal-class-history__list strong,
+.mcal-class-history__list span { display: block; }
+.mcal-class-history__list span { margin-top: 0.2rem; color: #5a5a6e; font-size: 0.82rem; }
+.mcal-personal-table { width: max(100%, 980px); }
+.mcal-personal-table thead small { display: block; margin-top: 0.2rem; color: #68708a; font-weight: 600; }
+.mcal-personal-table td[rowspan] { height: auto; }
+.mcal-personal-table td[rowspan] .mcal-room__event { height: 100%; min-height: 100%; box-sizing: border-box; align-content: start; }
+.mcal-personal-table__help { margin: 0.7rem 0 0; color: #5a5a6e; font-size: 0.86rem; }
+.mcal-student-search > p { color: #5a5a6e; }
+.mcal-student-search form { display: flex; gap: 0.55rem; }
+.mcal-student-search input { flex: 1; min-width: 0; padding: 0.65rem; border: 1px solid #d9dcec; border-radius: 8px; font: inherit; }
+.mcal-student-search button { padding: 0.65rem 0.8rem; border: 0; border-radius: 8px; background: var(--mcal-primary); color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.mcal-student-search__results { display: grid; gap: 0.55rem; margin: 0.8rem 0 0; padding: 0; list-style: none; }
+.mcal-student-search__results li { display: grid; gap: 0.18rem; padding: 0.75rem; border: 1px solid #e2e6f2; border-radius: 9px; }
+.mcal-student-search__results span, .mcal-student-search__results small { color: #5a5a6e; font-size: 0.84rem; }
+@media (max-width: 560px) {
+  .mcal-booking-editor__dates { grid-template-columns: 1fr; }
+  .mcal-student-editor__row { grid-template-columns: 1fr; }
+  .mcal-student-search form { flex-direction: column; }
+  .mcal-class-history__list li { align-items: stretch; flex-direction: column; }
 }
 
 .mcal__modebar {

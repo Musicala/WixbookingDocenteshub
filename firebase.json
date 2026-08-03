@@ -17,6 +17,7 @@
     "indexes": "firestore.indexes.json"
   },
   "hosting": {
+    "site": "wixbookingsmusicala",
     "public": ".",
     "ignore": [
       "firebase.json",

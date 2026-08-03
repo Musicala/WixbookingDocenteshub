@@ -15,6 +15,7 @@ service cloud.firestore {
         'lorenaduarte.404@gmail.com',
         'malego2709@gmail.com',
         'bagutierrezm@gmail.com',
+        'tiritiri.riri@gmail.com',
         'darasaxcifuentes@gmail.com'
       ];
     }

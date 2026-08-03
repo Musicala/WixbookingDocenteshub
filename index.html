@@ -557,6 +557,7 @@
             <span aria-hidden="true">@</span>
             <input id="user-email" type="email" value="" placeholder="Inicia sesion" readonly aria-label="Correo del usuario" />
           </div>
+          <button class="today-button" type="button" id="refresh-classes" hidden>↻ Recargar clases</button>
           <button class="primary-button" type="button" id="auth-button">Entrar</button>
         </div>
       </header>
@@ -583,6 +584,7 @@
       query,
       where,
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+    import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-functions.js";
     import { initReservasCalendar } from "./js/reservas-calendar.js";
 
     const firebaseConfig = {
@@ -606,13 +608,19 @@
     const container = document.getElementById("modulo-reservas");
     const userEmail = document.getElementById("user-email");
     const authButton = document.getElementById("auth-button");
+    const refreshClassesButton = document.getElementById("refresh-classes");
     const appShell = document.querySelector(".app");
+    const CALENDAR_REFRESH_EMAILS = new Set([
+      "musicalaasesor@gmail.com",
+      "adminmusicala@gmail.com",
+    ]);
     let calendarModule = null;
     let app = null;
     let db = null;
     let auth = null;
     let bitacorasAuth = null;
     let bitacorasDb = null;
+    let firebaseFunctions = null;
 
     function hasFirebaseConfig() {
       return Object.values(firebaseConfig).every((value) => value && !String(value).includes("REEMPLAZAR"));
@@ -663,6 +671,12 @@
         db,
         userEmail: user.email,
         loadStudentHubData,
+        async syncWixBookings() {
+          if (!firebaseFunctions) throw new Error("La conexión con Functions no está lista.");
+          const call = httpsCallable(firebaseFunctions, "syncWixBookings");
+          const response = await call({});
+          return response.data || {};
+        },
         onDisplayModeChange(mode) {
           appShell.classList.toggle("is-rooms-view", mode === "rooms");
         },
@@ -805,6 +819,7 @@
       app = initializeApp(firebaseConfig);
       db = getFirestore(app);
       auth = getAuth(app);
+      firebaseFunctions = getFunctions(app, "us-central1");
       const bitacorasApp = initializeApp(bitacorasFirebaseConfig, "bitacoras");
       bitacorasDb = getFirestore(bitacorasApp);
       bitacorasAuth = getAuth(bitacorasApp);
@@ -813,6 +828,7 @@
         if (user) {
           userEmail.value = user.email || "";
           authButton.textContent = "Salir";
+          refreshClassesButton.hidden = !CALENDAR_REFRESH_EMAILS.has(String(user.email || "").trim().toLowerCase());
           try {
             /* La carga de reservas fuerza una lectura desde el servidor. */
             startCalendar(user);
@@ -829,6 +845,7 @@
           appShell.classList.remove("is-authenticated");
           userEmail.value = "";
           authButton.textContent = "Entrar";
+          refreshClassesButton.hidden = true;
           if (calendarModule) {
             calendarModule.destroy();
             calendarModule = null;
@@ -847,6 +864,7 @@
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
     });
+    refreshClassesButton.addEventListener("click", () => window.location.reload());
     document.getElementById("go-today").addEventListener("click", () => {
       const today = document.querySelector(".fc-today-button");
       if (today) today.click();
