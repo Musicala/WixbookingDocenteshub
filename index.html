@@ -11,7 +11,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/locales/es.global.min.js"></script>
-  <link rel="stylesheet" href="css/reservas-calendar.css" />
+  <link rel="stylesheet" href="css/reservas-calendar.css?v=20261024-auto-rooms" />
 
   <style>
     :root {
@@ -69,6 +69,20 @@
       justify-content: space-between;
       gap: 12px;
       margin-bottom: 26px;
+    }
+
+    .brand__mark {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .brand__logo {
+      height: 34px;
+      width: auto;
+      flex: none;
+      object-fit: contain;
     }
 
     .brand h1 {
@@ -261,6 +275,10 @@
       min-width: 0;
     }
 
+    /* "Hoy" y las flechas van juntas, como un solo control de navegación. */
+    .topbar__left #prev-range { margin-left: 4px; }
+    .topbar__left #next-range { margin-right: 8px; }
+
     .today-button,
     .select-like,
     .primary-button {
@@ -305,7 +323,8 @@
     }
 
     .period-title {
-      min-width: 190px;
+      min-width: 0;
+      flex: 0 1 auto;
       font-size: 18px;
       font-weight: 700;
       letter-spacing: -0.01em;
@@ -411,6 +430,42 @@
       line-height: 1.65;
     }
 
+    .setup--welcome {
+      max-width: 520px;
+      margin: 64px auto;
+      padding: 40px 36px;
+      text-align: center;
+      border-radius: 26px;
+      border: 1px solid #ece6ff;
+      background:
+        radial-gradient(120% 90% at 50% -20%, #f3edff 0%, transparent 60%),
+        #fff;
+      box-shadow: 0 20px 50px rgba(34, 10, 99, 0.10);
+    }
+
+    .setup__bloom {
+      display: grid;
+      width: 58px;
+      height: 58px;
+      margin: 0 auto 18px;
+      place-items: center;
+      border-radius: 50%;
+      background: linear-gradient(95deg, #1b6ef3, #7b2ff7 55%, #e6007e);
+      color: #fff;
+      font-size: 26px;
+    }
+
+    .setup--welcome h2 {
+      background: linear-gradient(95deg, #1b6ef3, #7b2ff7 50%, #e6007e);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .setup--welcome .primary-button {
+      margin-top: 8px;
+    }
+
     @media (max-width: 980px) {
       .app {
         grid-template-columns: 1fr;
@@ -460,10 +515,17 @@
         display: none;
       }
 
+      /* Antes el correo se estiraba hasta ocupar toda la fila; ahora los
+         controles quedan agrupados y con un ancho razonable. */
       .user-box {
-        flex: 1 1 120px;
+        flex: 1 1 auto;
+        max-width: 320px;
         min-width: 0;
         padding: 4px 12px;
+      }
+
+      .topbar__right {
+        justify-content: flex-end;
       }
 
       .user-box input {
@@ -501,7 +563,11 @@
   <div class="app">
     <aside class="sidebar" aria-label="Resumen del calendario">
       <div class="brand">
-        <h1>Calendario</h1>
+        <div class="brand__mark">
+          <img class="brand__logo" src="assets/musicala-logo.png" alt="Musicala"
+               onerror="this.style.display='none'">
+          <h1>Calendario</h1>
+        </div>
         <button class="icon-button" type="button" aria-label="Vista lateral">▣</button>
       </div>
 
@@ -518,12 +584,12 @@
         <h2>Actividad</h2>
         <div class="activity-block">
           <div class="activity-summary">
-            <span>Proxima sesion</span>
+            <span>Próxima sesión</span>
             <span>⌃</span>
           </div>
           <div class="next-class" id="next-class">
             <strong>Esperando reservas</strong>
-            Cuando entren datos desde Wix, la siguiente clase aparecera aqui.
+            Cuando lleguen reservas desde Wix, tu siguiente clase aparecerá aquí.
           </div>
         </div>
         <div class="activity-block">
@@ -545,9 +611,9 @@
       <header class="topbar">
         <div class="topbar__left">
           <button class="today-button" type="button" id="go-today">Hoy</button>
-          <div class="period-title" id="period-title">Calendario de clases</div>
           <button class="icon-button" type="button" id="prev-range" aria-label="Anterior">‹</button>
           <button class="icon-button" type="button" id="next-range" aria-label="Siguiente">›</button>
+          <div class="period-title" id="period-title">Calendario de clases</div>
         </div>
 
         <div class="topbar__right">
@@ -555,9 +621,10 @@
           <div class="select-like">Semanalmente <span>⌄</span></div>
           <div class="user-box">
             <span aria-hidden="true">@</span>
-            <input id="user-email" type="email" value="" placeholder="Inicia sesion" readonly aria-label="Correo del usuario" />
+            <input id="user-email" type="email" value="" placeholder="Inicia sesión" readonly aria-label="Correo del usuario" />
           </div>
-          <button class="today-button" type="button" id="refresh-classes" hidden>↻ Recargar clases</button>
+          <button class="today-button" type="button" id="refresh-classes" hidden>↻ Actualizar clases</button>
+          <button class="today-button" type="button" id="open-tv" hidden>📺 Mostrar en TV</button>
           <button class="primary-button" type="button" id="auth-button">Entrar</button>
         </div>
       </header>
@@ -585,7 +652,7 @@
       where,
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
     import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-functions.js";
-    import { initReservasCalendar } from "./js/reservas-calendar.js";
+    import { initReservasCalendar } from "./js/reservas-calendar.js?v=20261024-auto-rooms";
 
     const firebaseConfig = {
       apiKey: "AIzaSyC06dLl2Lig3-kD4OVmh4C9LpFW9AeTyOc",
@@ -609,8 +676,11 @@
     const userEmail = document.getElementById("user-email");
     const authButton = document.getElementById("auth-button");
     const refreshClassesButton = document.getElementById("refresh-classes");
+    const openTvButton = document.getElementById("open-tv");
     const appShell = document.querySelector(".app");
-    const CALENDAR_REFRESH_EMAILS = new Set([
+    const CALENDAR_MANAGEMENT_EMAILS = new Set([
+      "alekcaballeromusic@gmail.com",
+      "catalina.medina.leal@gmail.com",
       "musicalaasesor@gmail.com",
       "adminmusicala@gmail.com",
     ]);
@@ -630,21 +700,25 @@
       container.innerHTML = `
         <div class="setup">
           <h2>Falta conectar Firebase</h2>
-          <p>El aplicativo ya esta listo como calendario web. Para ver las clases reales, revisa el objeto <code>firebaseConfig</code> en <code>index.html</code>.</p>
+          <p>El calendario ya está listo. Para ver las clases reales, revisa el objeto <code>firebaseConfig</code> en <code>index.html</code>.</p>
           <ul>
-            <li>Despues de conectar Firebase, inicia sesion con Google.</li>
-            <li>Las reservas deben existir en Firestore en la coleccion <code>calendarioWix</code>.</li>
-            <li>El campo <code>staffEmail</code> decide que clases ve cada docente.</li>
+            <li>Después de conectar Firebase, inicia sesión con Google.</li>
+            <li>Las reservas deben existir en Firestore, en la colección <code>calendarioWix</code>.</li>
+            <li>El campo <code>staffEmail</code> decide qué clases ve cada docente.</li>
           </ul>
         </div>`;
     }
 
     function showLoginMessage() {
       container.innerHTML = `
-        <div class="setup">
-          <h2>Inicia sesion</h2>
-          <p>Usa el boton <strong>Entrar</strong> para abrir el calendario con tu correo autorizado del Hub.</p>
+        <div class="setup setup--welcome">
+          <span class="setup__bloom" aria-hidden="true">✿</span>
+          <h2>Bienvenido a tu agenda</h2>
+          <p>Entra con tu correo de Musicala y verás tus clases de inmediato.</p>
+          <button class="primary-button" type="button" data-setup-login>Entrar con Google</button>
         </div>`;
+      const shortcut = container.querySelector("[data-setup-login]");
+      if (shortcut) shortcut.addEventListener("click", () => authButton.click());
     }
 
     function startCalendar(user) {
@@ -671,10 +745,10 @@
         db,
         userEmail: user.email,
         loadStudentHubData,
-        async syncWixBookings() {
+        async syncWixBookings(data = {}) {
           if (!firebaseFunctions) throw new Error("La conexión con Functions no está lista.");
           const call = httpsCallable(firebaseFunctions, "syncWixBookings");
-          const response = await call({});
+          const response = await call(data);
           return response.data || {};
         },
         onDisplayModeChange(mode) {
@@ -713,17 +787,32 @@
 
       const studentsRef = collection(bitacorasDb, "students");
       const candidates = new Map();
+      const collect = (snapshot) => {
+        snapshot.docs.forEach((item) => candidates.set(item.id, { id: item.id, ...item.data() }));
+      };
+      const isPermissionError = (error) => String(error?.code || "").includes("permission-denied");
+
+      /* El esquema actual guarda los correos en `emails` e `identity.emails`.
+         Conservamos los campos anteriores porque todavía existen bitácoras y
+         perfiles importados con esa estructura. */
       const searches = [
         ["email", "=="],
         ["correo", "=="],
         ["studentEmail", "=="],
         ["allEmails", "array-contains"],
         ["linkedEmails", "array-contains"],
+        ["emails", "array-contains"],
+        ["identity.emails", "array-contains"],
       ];
 
       for (const [field, operator] of searches) {
-        const snapshot = await getDocs(query(studentsRef, where(field, operator, normalizedEmail)));
-        snapshot.docs.forEach((item) => candidates.set(item.id, { id: item.id, ...item.data() }));
+        try {
+          collect(await getDocs(query(studentsRef, where(field, operator, normalizedEmail))));
+        } catch (error) {
+          // Una consulta heredada puede no estar permitida para todos los
+          // roles; las demás siguen siendo suficientes para resolver el perfil.
+          if (!isPermissionError(error)) throw error;
+        }
       }
 
       const student = [...candidates.values()].sort((a, b) =>
@@ -736,21 +825,48 @@
         student.studentId,
         student.studentKey,
         student.estudianteId,
-        student.documento,
+        student.canonicalStudentId,
+        student.officialStudentId,
+        student.estudianteKey,
+        student.contactId,
+        ...(Array.isArray(student.studentIds) ? student.studentIds : []),
+        ...(Array.isArray(student.aliases) ? student.aliases : []),
+        ...(Array.isArray(student.linkedStudentIds) ? student.linkedStudentIds : []),
       ]);
       const bitacorasRef = collection(bitacorasDb, "bitacoras");
       const entries = new Map();
+      const collectEntries = (snapshot) => {
+        snapshot.docs.forEach((item) => entries.set(item.id, { id: item.id, ...item.data() }));
+      };
+      let groupedQueryDenied = false;
 
       for (let index = 0; index < aliases.length; index += 10) {
         const part = aliases.slice(index, index + 10);
-        const snapshot = await getDocs(query(bitacorasRef, where("studentIds", "array-contains-any", part)));
-        snapshot.docs.forEach((item) => entries.set(item.id, { id: item.id, ...item.data() }));
+        try {
+          collectEntries(await getDocs(query(bitacorasRef, where("studentIds", "array-contains-any", part))));
+        } catch (error) {
+          if (!isPermissionError(error)) throw error;
+          groupedQueryDenied = true;
+        }
       }
 
-      if (!entries.size) {
+      /* En reglas antiguas, un array con aliases históricos puede ser
+         rechazado completo. Reintentamos por alias y también cubrimos
+         bitácoras que se guardaron antes de `studentIds`. */
+      if (!entries.size || groupedQueryDenied) {
         for (const alias of aliases) {
-          const snapshot = await getDocs(query(bitacorasRef, where("studentId", "==", alias)));
-          snapshot.docs.forEach((item) => entries.set(item.id, { id: item.id, ...item.data() }));
+          try {
+            collectEntries(await getDocs(query(bitacorasRef, where("studentIds", "array-contains", alias))));
+          } catch (error) {
+            if (!isPermissionError(error)) throw error;
+          }
+        }
+      }
+      for (const alias of aliases) {
+        try {
+          collectEntries(await getDocs(query(bitacorasRef, where("studentId", "==", alias))));
+        } catch (error) {
+          if (!isPermissionError(error)) throw error;
         }
       }
 
@@ -770,7 +886,7 @@
         month: "long",
         year: "numeric",
       });
-      const labels = ["dom", "lun", "mar", "mie", "jue", "vie", "sab"];
+      const labels = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
       const firstDay = new Date(target.getFullYear(), target.getMonth(), 1).getDay();
       const lastDate = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
       const prevLastDate = new Date(target.getFullYear(), target.getMonth(), 0).getDate();
@@ -828,7 +944,9 @@
         if (user) {
           userEmail.value = user.email || "";
           authButton.textContent = "Salir";
-          refreshClassesButton.hidden = !CALENDAR_REFRESH_EMAILS.has(String(user.email || "").trim().toLowerCase());
+          const canManageCalendar = CALENDAR_MANAGEMENT_EMAILS.has(String(user.email || "").trim().toLowerCase());
+          refreshClassesButton.hidden = !canManageCalendar;
+          openTvButton.hidden = !canManageCalendar;
           try {
             /* La carga de reservas fuerza una lectura desde el servidor. */
             startCalendar(user);
@@ -838,7 +956,7 @@
             container.innerHTML = `
               <div class="setup">
                 <h2>No se pudo validar tu sesión</h2>
-                <p>Cierra sesión e ingresa de nuevo para cargar las clases.</p>
+                <p>Cierra sesión y vuelve a entrar para cargar tus clases.</p>
               </div>`;
           }
         } else {
@@ -846,6 +964,7 @@
           userEmail.value = "";
           authButton.textContent = "Entrar";
           refreshClassesButton.hidden = true;
+          openTvButton.hidden = true;
           if (calendarModule) {
             calendarModule.destroy();
             calendarModule = null;
@@ -864,7 +983,20 @@
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
     });
-    refreshClassesButton.addEventListener("click", () => window.location.reload());
+    refreshClassesButton.addEventListener("click", async () => {
+      if (!calendarModule?.syncFromWix) return;
+      refreshClassesButton.disabled = true;
+      refreshClassesButton.textContent = "↻ Actualizando…";
+      try {
+        await calendarModule.syncFromWix();
+      } finally {
+        refreshClassesButton.disabled = false;
+        refreshClassesButton.textContent = "↻ Actualizar clases";
+      }
+    });
+    openTvButton.addEventListener("click", () => {
+      window.open("./tv-agenda.html", "_blank", "noopener,noreferrer");
+    });
     document.getElementById("go-today").addEventListener("click", () => {
       const today = document.querySelector(".fc-today-button");
       if (today) today.click();

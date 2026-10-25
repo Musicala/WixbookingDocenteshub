@@ -2380,3 +2380,15 @@
 @media (prefers-reduced-motion: reduce) {
   .mcal-modal__panel { animation: none; }
 }
+
+.mcal-rooms__planning-alerts {
+  margin: 0 0 16px;
+  padding: 14px 18px;
+  border: 1px solid #e7bb62;
+  border-radius: 14px;
+  background: #fff8e8;
+  color: #704409;
+  font-size: 14px;
+}
+.mcal-rooms__planning-alerts ul { margin: 8px 0 0; padding-left: 20px; }
+.mcal-rooms__planning-alerts li + li { margin-top: 6px; }

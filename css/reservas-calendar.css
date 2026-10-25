@@ -14,6 +14,10 @@
   --mcal-magenta: var(--brahms, #ce0071);
   --mcal-line: var(--haydn, #e6e8e8);
   --mcal-bg: var(--debussy, #f9f9f9);
+  /* Paleta Musicala: gradiente de marca y verde para acentos botánicos. */
+  --mcal-grad: linear-gradient(95deg, #1b6ef3, #7b2ff7 55%, #e6007e);
+  --mcal-lime: #8cc63f;
+  --mcal-cyan: #17a9c9;
 
   font-family: "Roboto", system-ui, sans-serif;
   color: var(--mcal-ink);
@@ -26,14 +30,41 @@
 /* ----------------------- Cabecera --------------------------- */
 
 .mcal__header {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem 1.5rem;
-  align-items: flex-end;
-  justify-content: space-between;
-  padding: 0.85rem 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.75rem 1.25rem;
+  align-items: center;
+  padding: 0.85rem 1.1rem;
   margin-bottom: 0;
   border-bottom: 1px solid var(--mcal-line);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* Los filtros ocupan su propia fila completa bajo el título. */
+.mcal__header .mcal__filters { grid-column: 1 / -1; }
+
+.mcal__title-block { display: flex; align-items: center; gap: 0.7rem; min-width: 0; }
+
+/* Marca de agua botánica del encabezado. */
+.mcal__title-block::before {
+  content: "";
+  flex: none;
+  width: 0.4rem;
+  height: 2.1rem;
+  border-radius: 99px;
+  background: var(--mcal-grad);
+}
+
+@media (max-width: 860px) {
+  .mcal__header {
+    position: static;
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .mcal__title {
@@ -154,9 +185,54 @@
 
 .mcal__filters {
   display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.mcal__filters-row {
+  display: flex;
   flex-wrap: wrap;
   align-items: end;
   gap: 0.6rem;
+}
+
+/* Herramientas de coordinación: plegadas por defecto para que el uso diario
+   (ver clases, filtrar por docente o estado) no compita con la administración. */
+.mcal__tools {
+  border: 1px solid var(--mcal-line);
+  border-radius: 12px;
+  background: #fcfbff;
+}
+
+.mcal__tools > summary {
+  padding: 0.5rem 0.85rem;
+  color: var(--mcal-deep);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  list-style: none;
+}
+
+.mcal__tools > summary::-webkit-details-marker { display: none; }
+.mcal__tools > summary::before { content: "▸ "; color: var(--mcal-accent); }
+.mcal__tools[open] > summary::before { content: "▾ "; }
+.mcal__tools > summary:hover { color: var(--mcal-accent); }
+
+.mcal__tools-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.6rem;
+  padding: 0 0.85rem 0.85rem;
+  border-top: 1px solid var(--mcal-line);
+  padding-top: 0.75rem;
+}
+
+.mcal__settings-button--ghost {
+  border-color: #ded6ff;
+  color: var(--mcal-accent);
 }
 
 /* En pantallas de escritorio (admin) aprovechamos el ancho: los filtros se
@@ -169,11 +245,11 @@
   .mcal__filter select {
     min-width: 8.5rem;
   }
-  .mcal__upload {
-    margin-left: auto;
-  }
   .mcal__settings-button {
     align-self: end;
+  }
+  .mcal__filters-row .mcal__settings-button--ghost {
+    margin-left: auto;
   }
 }
 
@@ -203,7 +279,21 @@
   cursor: pointer;
 }
 
-.mcal__filter select:focus-visible {
+.mcal__filter input[type="date"] {
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--mcal-ink);
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--mcal-line);
+  border-radius: 10px;
+  background: var(--mcal-bg);
+}
+
+.mcal__filter select:focus-visible,
+.mcal__filter input[type="date"]:focus-visible {
   outline: 2px solid var(--mcal-accent);
   outline-offset: 1px;
 }
@@ -775,6 +865,7 @@
 
 /* EdiciÃ³n de reservas e historial del estudiante (solo coordinaciÃ³n). */
 .mcal-booking-edit,
+.mcal-booking-reactivate,
 .mcal-class-history__list button,
 .mcal-booking-editor button {
   border: 1px solid rgba(12, 65, 196, 0.24);
@@ -926,6 +1017,204 @@
   grid-template-columns: minmax(260px, 32%) minmax(0, 1fr);
   gap: 1rem;
   align-items: start;
+}
+
+.mcal-booking-reactivate {
+  margin-top: 0.8rem;
+  border-color: #177443;
+  background: #177443;
+  color: #fff;
+}
+
+.mcal-rooms-layout--cleaning {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.mcal-cleaning-intro {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+  margin: 0 0 0.8rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid #bce7ce;
+  border-radius: 10px;
+  background: #f0fbf4;
+  color: #245c3c;
+  font-size: 0.88rem;
+}
+
+.mcal-cleaning-cell {
+  min-width: 5.4rem;
+  text-align: center;
+  font-weight: 800;
+}
+
+.mcal-cleaning-cell--free {
+  background: #dcf7e5 !important;
+  color: #17653a;
+}
+
+.mcal-cleaning-cell--occupied {
+  background: #f6f7fa !important;
+  color: #7a8093;
+}
+
+.mcal-cleaning-recommendation {
+  min-width: 11rem;
+  background: #fff8d9 !important;
+  color: #6a4a00;
+}
+
+.mcal-cleaning-recommendation strong,
+.mcal-cleaning-recommendation small {
+  display: block;
+}
+
+.mcal-cleaning-mobile {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mcal-cleaning-intro {
+    margin-bottom: 0.7rem;
+    font-size: 0.82rem;
+  }
+
+  .mcal-cleaning-mobile {
+    display: grid;
+    gap: 0.7rem;
+  }
+
+  .mcal-cleaning-mobile-card {
+    padding: 1rem 1.05rem;
+    border: 1px solid #8ed7aa;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #eafff1, #d7f5e2);
+    color: #164b2d;
+    box-shadow: 0 7px 18px rgba(26, 105, 59, 0.12);
+  }
+
+  .mcal-cleaning-mobile-card + .mcal-cleaning-mobile-card {
+    border-color: #e8d38c;
+    background: linear-gradient(135deg, #fffbed, #fff3c9);
+    color: #654700;
+  }
+
+  .mcal-cleaning-mobile-card__eyebrow {
+    display: grid;
+    gap: 0.15rem;
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  .mcal-cleaning-mobile-card__eyebrow small {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: normal;
+    text-transform: none;
+    opacity: 0.75;
+  }
+
+  .mcal-cleaning-mobile-card__head {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    margin-bottom: 0.65rem;
+  }
+
+  .mcal-cleaning-mobile-card__icon {
+    display: grid;
+    width: 2.3rem;
+    height: 2.3rem;
+    place-items: center;
+    border-radius: 12px;
+    background: #fff;
+    font-size: 1.25rem;
+    box-shadow: 0 2px 7px rgba(22, 75, 45, 0.12);
+  }
+
+  .mcal-cleaning-mobile-card strong {
+    display: block;
+    font-size: 1.28rem;
+    line-height: 1.2;
+  }
+
+  .mcal-cleaning-mobile-card p {
+    margin: 0.35rem 0 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+
+  .mcal-cleaning-mobile-card p b {
+    display: inline-block;
+    padding: 0.12rem 0.42rem;
+    border-radius: 999px;
+    background: #187044;
+    color: #fff;
+    font-size: 0.72rem;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  .mcal-cleaning-mobile-card__count {
+    margin-top: 0.7rem !important;
+    font-size: 0.78rem !important;
+    font-weight: 900 !important;
+  }
+
+  .mcal-cleaning-mobile-card__rooms {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.75rem;
+  }
+
+  .mcal-cleaning-mobile-card__rooms span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.35rem 0.5rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.85);
+    font-size: 0.76rem;
+    font-weight: 800;
+  }
+
+  .mcal-cleaning-mobile-card__rooms span b {
+    display: inline-grid;
+    width: 1rem;
+    height: 1rem;
+    place-items: center;
+    border-radius: 999px;
+    background: #177443;
+    color: #fff;
+    font-size: 0.72rem;
+    line-height: 1;
+  }
+
+  .mcal-cleaning-mobile-card__rooms span.is-occupied {
+    background: rgba(235, 237, 241, 0.92);
+    color: #687080;
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+  }
+
+  .mcal-cleaning-mobile-card__rooms span.is-occupied b {
+    background: #8a92a1;
+  }
+
+  .mcal-cleaning-table {
+    display: none;
+  }
+}
+
+.mcal-cleaning-recommendation small {
+  margin-top: 0.2rem;
+  color: #856517;
+  font-weight: 700;
 }
 
 .mcal-rooms-sidebar,
@@ -2435,3 +2724,15 @@
 @media (prefers-reduced-motion: reduce) {
   .mcal-modal__panel { animation: none; }
 }
+
+.mcal-rooms__planning-alerts {
+  margin: 0 0 16px;
+  padding: 14px 18px;
+  border: 1px solid #e7bb62;
+  border-radius: 14px;
+  background: #fff8e8;
+  color: #704409;
+  font-size: 14px;
+}
+.mcal-rooms__planning-alerts ul { margin: 8px 0 0; padding-left: 20px; }
+.mcal-rooms__planning-alerts li + li { margin-top: 6px; }

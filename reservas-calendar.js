@@ -1,3 +1,4 @@
+import { availabilityOccurrences } from "./availability-events.js";
 /* ============================================================
    Reservas Wix · Calendario — Hub Docentes Musicala
    ------------------------------------------------------------
@@ -65,6 +66,7 @@ const ADVISOR_EMAILS = [
 const HUB_TEACHER_FALLBACKS = [
   { email: "catalina.medina.leal@gmail.com", label: "Catalina Medina" },
   { email: "alekcaballeromusic@gmail.com", label: "Alek Caballero" },
+  { email: "malego2709@gmail.com", label: "María Alejandra Gómez" },
   { email: "darasaxcifuentes@gmail.com", label: "Dara Natalia Cifuentes Rojas" },
 ];
 
@@ -727,6 +729,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     },
 
     eventClick(info) {
+      if (info.event.extendedProps.isAvailability) return;
       if (info.event.extendedProps.isGroup) {
         openDetailData({
           ...info.event.extendedProps,
@@ -741,6 +744,9 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     // Texto compacto del evento: "Servicio - Cliente" (+ prefijo si aplica)
     eventContent(arg) {
       const p = arg.event.extendedProps;
+      if (p.isAvailability) return { html: escapeHTML(arg.event.title) };
+      const planningWarning = (p.roomPlanningIssues || []).map(message => `<span class="mcal-ev__tag">⚠ ${escapeHTML(message)}</span> `).join("");
+      const availabilityWarning = p.availabilityConflict ? `<span class="mcal-ev__tag">⚠ Cruce de disponibilidad</span> ` : "";
       const cancelled = p.statusKey === "cancelled";
       const blocked = p.statusKey === "blocked";
       const time = arg.timeText ? `<span class="mcal-ev__time">${escapeHTML(arg.timeText)}</span>` : "";
@@ -772,7 +778,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
           html: `
             <div class="mcal-ev mcal-ev--card">
               <span class="mcal-ev__top">${dot}${time}</span>
-              <span class="mcal-ev__main">${blocked ? prefix : ""}${escapeHTML(p.serviceName || "Clase")}</span>
+              <span class="mcal-ev__main">${planningWarning}${availabilityWarning}${blocked ? prefix : ""}${escapeHTML(p.serviceName || "Clase")}</span>
               ${sub}
               ${students}
               <span class="mcal-ev__metarow">${chip}</span>
@@ -788,7 +794,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
         html: `
           <div class="mcal-ev">
             <span class="mcal-ev__top">${dot}${time}</span>
-            <span class="mcal-ev__main">${prefix}${escapeHTML(p.serviceName || "Clase")} - ${escapeHTML(p.isGroup ? `${p.groupCount} participantes` : (p.customerName || p.staffName || "Sin nombre"))}</span>
+            <span class="mcal-ev__main">${planningWarning}${availabilityWarning}${prefix}${escapeHTML(p.serviceName || "Clase")} - ${escapeHTML(p.isGroup ? `${p.groupCount} participantes` : (p.customerName || p.staffName || "Sin nombre"))}</span>
             ${extra}
           </div>`,
       };
@@ -818,6 +824,13 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       state.unsubscribe();
       state.unsubscribe = null;
     }
+
+    if (state.availabilityUnsubscribe) state.availabilityUnsubscribe();
+    const availabilitySource = collection(db, "teacherAvailability");
+    state.availabilityUnsubscribe = onSnapshot(isAdmin ? availabilitySource : query(availabilitySource, where("teacherEmail", "==", email)), snap => {
+      state.availabilityBlocks = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+      if (state.calendar) renderEvents();
+    }, err => console.warn("No se pudo consultar disponibilidad:", err));
 
     const col = collection(db, COLLECTION_NAME);
     const tsStart = Timestamp.fromDate(rangeStart);
@@ -923,6 +936,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
         customerName: b.customerName,
         customerEmail: b.customerEmail,
         studentEmails: b.studentEmails,
+        roomPlanningIssues: b.roomPlanningIssues || [],
         customerPhone: b.customerPhone,
         status: b.status,
         statusKey,
@@ -1062,8 +1076,29 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       if (ev) events.push(ev);
     });
 
+    const occurrences = state.visibleRange ? availabilityOccurrences(state.availabilityBlocks || [], state.visibleRange.start, state.visibleRange.end) : [];
+    for (const event of events) {
+      const teacherEmail = String(event.extendedProps?.staffEmail || "").toLowerCase();
+      const conflicts = occurrences.some(o => o.block.teacherEmail === teacherEmail && new Date(o.start) < new Date(event.end) && new Date(o.end) > new Date(event.start));
+      event.extendedProps.availabilityConflict = conflicts;
+      if (conflicts) {
+        event.title = `⚠ Cruce de disponibilidad · ${event.title}`;
+        event.borderColor = "#dc2626";
+      }
+    }
     state.calendar.removeAllEvents();
     state.calendar.addEventSource(events);
+    const visibleBlocks = occurrences.filter(o => {
+      if (!isAdmin) return true;
+      if (state.filters.alcance !== "all" && o.block.teacherEmail !== email) return false;
+      return !state.filters.docente || state.filters.docente === o.block.teacherEmail;
+    });
+    state.calendar.addEventSource(visibleBlocks.map(o => ({
+      id: `availability-${o.block.id}-${o.day}`, start: o.start, end: o.end,
+      title: `No disponible · ${o.block.teacherEmail}${o.block.status !== "synced" ? " · Pendiente de Wix" : ""}`,
+      display: "background", backgroundColor: "#fda4af",
+      extendedProps: { isAvailability: true },
+    })));
     renderTodayOverview(events);
     renderRoomsView();
     emptyEl.hidden = events.length > 0;
@@ -1107,6 +1142,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       customerName: `${count} participantes`,
       customerEmail: participants.map((p) => p.email).filter(Boolean).join(", "),
       participantsCount: count,
+      roomPlanningIssues: [...new Set(bookings.flatMap(booking => booking.roomPlanningIssues || []))],
       roomAssignment: groupRoomAssignment,
     };
     return event;
@@ -1453,6 +1489,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
         ${isAdmin && !p.roomAssignment?.automatic ? 'draggable="true"' : ""}>
         <span>${escapeHTML(formatTime(new Date(event.start)))} - ${escapeHTML(formatTime(new Date(event.end)))}</span>
         <b>${escapeHTML(p.serviceName || "Clase")}</b>
+        ${(p.roomPlanningIssues || []).map(message => `<small>⚠ ${escapeHTML(message)}</small>`).join("")}
         <small>${escapeHTML(p.staffName || "")}${p.groupCount ? ` · ${escapeHTML(String(p.groupCount))} participantes` : ""}</small>
       </button>
     `;
@@ -1470,6 +1507,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
         ${draggable && isAdmin ? 'draggable="true"' : ""}>
         <span>${escapeHTML(formatTime(new Date(event.start)))} - ${escapeHTML(formatTime(new Date(event.end)))}</span>
         <b>${escapeHTML(p.serviceName || "Clase")}</b>
+        ${(p.roomPlanningIssues || []).map(message => `<small>⚠ ${escapeHTML(message)}</small>`).join("")}
         <small>${escapeHTML(roomName)} · ${escapeHTML(p.staffName || "Sin docente")}</small>
       </button>
     `;
@@ -1962,10 +2000,41 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
   }
 
   function normalizeHeader(value) {
-    return cleanCsvText(value)
+    const normalized = cleanCsvText(value)
       .toLowerCase()
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "");
+    // Wix exporta el CSV con encabezados en el idioma del panel. Internamente
+    // usamos las claves inglesas para conservar compatibilidad con exportes
+    // anteriores, así que traducimos los encabezados frecuentes en español.
+    const aliases = {
+      "fecha de la sesion": "session date",
+      "hora de inicio de reserva": "session date",
+      "hora de finalizacion de reserva": "booking end",
+      "hora de inicio": "start time",
+      "nombre": "booking contact name",
+      "email": "booking contact email",
+      "telefono": "booking contact phone",
+      "servicio nombre": "service name",
+      "nombre del servicio": "service name",
+      "servicio tipo": "service type",
+      "tipo de servicio": "service type",
+      "personal nombre": "staff name",
+      "miembro del personal": "staff name",
+      "booking contactar a nombre": "booking contact name",
+      "booking contactar a email": "booking contact email",
+      "booking contactar a telefono": "booking contact phone",
+      "booking estado": "booking status",
+      "estado de la reserva": "booking status",
+      "estado de asistencia": "attendance status",
+      "asistencia": "attendance status",
+      "estado del pago": "payment status",
+      "cliente direccion": "client address",
+      "direccion del cliente": "client address",
+      "direccion de la ubicacion": "location address",
+      "tamano del grupo": "plazas reservadas",
+    };
+    return aliases[normalized] || normalized;
   }
 
   function rowToObject(headers, row) {
@@ -1977,11 +2046,19 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
   }
 
   function parseCsvDate(dateValue, timeValue) {
-    const dateParts = cleanCsvText(dateValue).split(/[/-]/).map(Number);
+    let dateText = cleanCsvText(dateValue);
+    let timeText = cleanCsvText(timeValue);
+    if (!timeText && dateText.includes(",")) {
+      const separator = dateText.lastIndexOf(",");
+      timeText = dateText.slice(separator + 1).trim();
+      dateText = dateText.slice(0, separator).trim();
+    }
+
+    const dateParts = dateText.split(/[/-]/).map(Number);
     if (dateParts.length !== 3 || dateParts.some((part) => Number.isNaN(part))) return null;
 
     const [day, month, year] = dateParts;
-    const [hour = 0, minute = 0] = cleanCsvText(timeValue).split(":").map(Number);
+    const [hour = 0, minute = 0] = timeText.split(":").map(Number);
     const date = new Date(year, month - 1, day, hour || 0, minute || 0, 0, 0);
     return Number.isNaN(date.getTime()) ? null : date;
   }
@@ -2449,6 +2526,9 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
 
   async function importCsvRows(rows) {
     const headers = rows[0].map(normalizeHeader);
+    if (!headers.includes("session date")) {
+      throw new Error("El CSV no incluye una columna compatible de fecha y hora de inicio.");
+    }
     const dataRows = rows.slice(1).map((row) => rowToObject(headers, row));
     const staffNames = new Set(dataRows.map((row) => row["staff name"]).filter(Boolean));
     const staffEmailMap = await loadStaffEmailMap(staffNames);
@@ -2478,8 +2558,11 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       if (!start) continue;
 
       const duration = parseDurationMinutes(row["duracion"]);
-      const end = new Date(start.getTime() + duration * 60000);
-      const staffName = row["staff name"];
+      const csvEnd = parseCsvDate(row["booking end"], row["end time"]);
+      const end = csvEnd && csvEnd > start
+        ? csvEnd
+        : new Date(start.getTime() + duration * 60000);
+      const staffName = row["staff name"] || "";
       const staffEmail = staffEmailMap.get(normalizeStaffKey(staffName)) || "";
       if (!staffEmail) unmatchedCounts.set(staffName, (unmatchedCounts.get(staffName) || 0) + 1);
       else mappedStaffCounts.set(staffName, (mappedStaffCounts.get(staffName) || 0) + 1);
@@ -2508,13 +2591,13 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       const ref = doc(db, COLLECTION_NAME, bookingId);
       batch.set(ref, {
         bookingId,
-        serviceName: row["service name"],
-        serviceType: row["service type"],
+        serviceName: row["service name"] || "",
+        serviceType: row["service type"] || "",
         staffName,
         staffEmail,
-        customerName: row["booking contact name"],
+        customerName: row["booking contact name"] || "",
         customerEmail: String(row["booking contact email"] || "").toLowerCase(),
-        customerPhone: row["booking contact phone"],
+        customerPhone: row["booking contact phone"] || "",
         studentEmails: row["booking contact email"] ? [String(row["booking contact email"]).toLowerCase()] : [],
         studentLookupKey: String(row["booking contact email"] || "").toLowerCase(),
         startDate: Timestamp.fromDate(start),
@@ -2522,9 +2605,9 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
         startDateRaw: `${row["session date"]} ${row["start time"]}`,
         endDateRaw: end.toISOString(),
         status: row["booking status"] || "confirmed",
-        attendanceStatus: row["attendance status"],
-        paymentStatus: row["payment status"],
-        location: row["client address"],
+        attendanceStatus: row["attendance status"] || "",
+        paymentStatus: row["payment status"] || "",
+        location: row["client address"] || row["location address"] || "",
         participantsCount: Number(row["plazas reservadas"] || 1),
         source: "csv-emergency",
         updatedAt: serverTimestamp(),
@@ -2735,6 +2818,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       row("⌂", "Asignar salón", renderRoomAssignmentControl(b, groupKey, roomAssignment), { full: true, html: true });
     }
 
+    row("⚠", "Avisos de organización", (b.roomPlanningIssues || []).join(" "));
     const participantsTitle = participants.length === 1 ? "Participante" : `Participantes · ${participants.length}`;
     const dateLabel = start
       ? start.toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long" })
@@ -2822,6 +2906,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
 
   function closeDetail() {
     modalEl.hidden = true;
+    if (state.availabilityUnsubscribe) state.availabilityUnsubscribe();
     document.removeEventListener("keydown", onEscClose);
   }
 
@@ -2957,6 +3042,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
         bookings.forEach((booking) => {
           batch.set(doc(db, COLLECTION_NAME, booking._docId || booking.bookingId), {
             roomIndex: null,
+            roomAssignmentMode: "manual-unassigned",
             roomName: "",
             roomAssignedAt: serverTimestamp(),
             roomAssignedBy: email,
@@ -3005,6 +3091,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       bookings.forEach((booking) => {
         batch.set(doc(db, COLLECTION_NAME, booking._docId || booking.bookingId), {
           roomIndex,
+          roomAssignmentMode: "manual",
           roomName: ROOMS[roomIndex],
           roomAssignmentGroupKey: groupKey,
           roomAssignedAt: serverTimestamp(),
@@ -3048,6 +3135,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       bookings.forEach((booking) => {
         batch.set(doc(db, COLLECTION_NAME, booking._docId || booking.bookingId), {
           roomIndex: null,
+          roomAssignmentMode: "manual-unassigned",
           roomName: "",
           roomAssignedAt: serverTimestamp(),
           roomAssignedBy: email,
@@ -3096,6 +3184,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     bookings.forEach((booking) => {
       batch.set(doc(db, COLLECTION_NAME, booking._docId || booking.bookingId), {
         roomIndex: numericRoomIndex,
+        roomAssignmentMode: "manual",
         roomName: ROOMS[numericRoomIndex],
         roomAssignmentGroupKey: groupKey,
         roomAssignedAt: serverTimestamp(),
@@ -3299,6 +3388,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
           staffName: bookings[0].staffName || "",
           staffEmail: bookings[0].staffEmail || "",
           roomIndex,
+          roomAssignmentMode: "manual",
           roomName: ROOMS[roomIndex],
           startDate: Timestamp.fromDate(start),
           endDate: Timestamp.fromDate(end),
@@ -3311,6 +3401,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
         bookings.forEach((b) => {
           batch.set(doc(db, COLLECTION_NAME, b._docId || b.bookingId), {
             roomIndex,
+            roomAssignmentMode: "manual",
             roomName: ROOMS[roomIndex],
             roomAssignmentGroupKey: groupKey,
             roomAssignedAt: serverTimestamp(),
