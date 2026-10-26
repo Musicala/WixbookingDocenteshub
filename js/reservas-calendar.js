@@ -716,9 +716,10 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
 
   function updateAgendaTabs() {
     const viewType = state.calendar?.view?.type || "";
-    const active = viewType === "listDay"
+    // La semana con horas (coordinación) también cuenta como "Semana".
+    const active = viewType === "listDay" || viewType === "timeGridDay"
       ? "agendaToday"
-      : viewType === "listWeek"
+      : viewType === "listWeek" || viewType === "timeGridWeek"
         ? "agendaWeek"
         : "agendaMonth";
     ["agendaToday", "agendaWeek", "agendaMonth"].forEach((name) => {
