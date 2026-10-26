@@ -27,7 +27,14 @@
       "*.zip",
       "package.json",
       "package-lock.json",
-      "*.local"
+      "*.local",
+      "**/.*/**",
+      ".git/**",
+      ".demo/**",
+      ".claude/**",
+      "README.md",
+      "firestore.rules",
+      "firestore.indexes.json"
     ]
   }
 }

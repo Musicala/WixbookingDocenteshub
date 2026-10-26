@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#12b5a5" />
+  <meta name="color-scheme" content="light" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+  <meta name="description" content="Hub de accesos para Docentes de Musicala (login con Google). Accesos rápidos a herramientas, protocolos y registros." />
+
+  <!-- Preloads (mejora percepción de carga) -->
+  <link rel="preload" as="image" href="./logo.png" />
+  <link rel="preload" as="image" href="./icons/icon-192.png" />
+
+  <!-- PWA -->
+  <link rel="manifest" href="./manifest.webmanifest?v=2026-07-18.14" />
+  <link rel="icon" href="./icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="mobile-web-app-capable" content="yes" />
+
+  <!-- iOS niceties (no rompe nada si no aplica) -->
+  <meta name="format-detection" content="telephone=no,date=no,address=no,email=no,url=no" />
+  <meta name="apple-mobile-web-app-title" content="Musicala Docentes" />
+
+  <title>Musicala Docentes Hub</title>
+  <link rel="stylesheet" href="./styles.css?v=2026-10-21.1" />
+</head>
+
+<body>
+  <!-- Skip link (accesibilidad real, no adorno) -->
+  <a class="skip" href="#grid" style="
+    position:absolute; left:-9999px; top:auto; width:1px; height:1px; overflow:hidden;
+  ">Saltar a accesos</a>
+
+  <!-- App root (sin mockup de teléfono) -->
+  <div class="appRoot" role="application" aria-label="Musicala Docentes Hub · Accesos">
+    <div class="screen">
+
+      <!-- Banner de actualización PWA -->
+      <div id="pwa-update" class="pwaUpdate" hidden role="status" aria-live="polite" aria-atomic="true">
+        <span class="pwaUpdateText">Hay una actualización lista.</span>
+        <button class="pwaUpdateBtn" id="btn-update" type="button">Actualizar</button>
+      </div>
+
+      <!-- ===== LOGIN ===== -->
+      <main class="wrap" id="view-login" hidden>
+        <section class="loginCard" aria-label="Inicio de sesión">
+          <div class="loginBrand">
+            <div class="mark" aria-hidden="true">
+              <img class="markImg" src="./logo.png" alt="Musicala"
+                   onerror="this.style.display='none'; this.parentElement.classList.add('fallback');" />
+              <div class="markFallback" aria-hidden="true">🎶</div>
+            </div>
+
+            <div class="brandText">
+              <h1 class="brandTitle">Musicala</h1>
+              <p class="brandSub">Docentes Hub</p>
+            </div>
+          </div>
+
+          <div class="loginActions">
+            <button class="btnGoogle" id="btn-google" type="button" aria-label="Entrar con Google">
+              <span class="gIcon" aria-hidden="true">G</span>
+              Entrar con Google
+            </button>
+
+            <button class="btnGhost" id="btn-install" type="button" hidden>
+              Instalar app
+            </button>
+
+            <p class="loginHint">Usa tu cuenta autorizada por Musicala 🙂</p>
+          </div>
+        </section>
+
+        <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+      </main>
+
+      <!-- ===== APP ===== -->
+      <main class="wrap" id="view-app" hidden>
+        <header class="top" role="banner">
+          <div class="brand">
+            <div class="logoWrap" aria-hidden="true">
+              <img class="logoImg" src="./logo.png" alt=""
+                   onerror="this.style.display='none'; this.parentElement.classList.add('fallback');" />
+              <div class="logoFallback" aria-hidden="true">🎓</div>
+            </div>
+
+            <div class="brandCopy">
+              <h2 class="appTitle">Musicala Docentes Hub</h2>
+              <p id="user-line">Accesos rápidos</p>
+            </div>
+
+            <div class="brandActions" aria-label="Acciones">
+              <!-- Menú corporativo (Drawer) -->
+              <button
+                class="btnGhost"
+                id="btn-menu"
+                type="button"
+                title="Menú"
+                aria-label="Abrir menú"
+                aria-haspopup="dialog"
+                aria-controls="app-drawer"
+                aria-expanded="false"
+              >
+                ☰
+              </button>
+
+              <button class="btnGhost" id="btn-install-2" type="button" title="Instalar" hidden>
+                Instalar
+              </button>
+
+              <button class="btnGhost" id="btn-logout" type="button" title="Salir">
+                Salir
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <!-- Grid de accesos -->
+        <section class="grid" id="grid" aria-label="Accesos"></section>
+
+        <div class="toast" id="toast-app" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+
+        <!-- Drawer overlay + Drawer (inicialmente oculto; lo maneja app.js) -->
+        <div
+          id="drawer-overlay"
+          class="drawerOverlay"
+          hidden
+          tabindex="-1"
+          aria-hidden="true"
+        ></div>
+
+        <aside
+          id="app-drawer"
+          class="drawer"
+          hidden
+          role="dialog"
+          aria-modal="true"
+          aria-label="Menú"
+        >
+          <div class="drawerHead">
+            <div class="drawerBrand">
+              <div class="drawerLogo" aria-hidden="true">
+                <img src="./logo.png" alt=""
+                     onerror="this.style.display='none';" />
+              </div>
+
+              <div class="drawerTxt">
+                <div class="drawerTitle">Musicala</div>
+                <div class="drawerSub">Docentes Hub</div>
+              </div>
+            </div>
+
+            <button class="btnGhost drawerClose" id="btn-drawer-close" type="button" aria-label="Cerrar menú" title="Cerrar">
+              ✕
+            </button>
+          </div>
+
+          <div class="drawerBody">
+            <section class="drawerSection" aria-label="Perfil">
+              <div class="drawerLabel">Perfil</div>
+              <div class="drawerCard">
+                <div class="drawerUser">
+                  <div class="drawerAvatar" aria-hidden="true">👤</div>
+                  <div class="drawerUserTxt">
+                    <div class="drawerUserName" id="drawer-user-name">Usuario</div>
+                    <div class="drawerUserMail" id="drawer-user-email">correo@musicala.co</div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="drawerSection" aria-label="Acciones">
+              <div class="drawerLabel">Acciones</div>
+
+              <!-- Estas opciones quedan listas para que app.js les ponga lógica -->
+              <button class="drawerItem" type="button" data-drawer-action="favorites" aria-label="Ver favoritos">
+                <span class="diIco" aria-hidden="true">⭐</span>
+                <span class="diTxt">
+                  <span class="diTitle">Favoritos</span>
+                  <span class="diSub">Tus accesos más usados</span>
+                </span>
+              </button>
+
+              <button class="drawerItem" type="button" data-drawer-action="search" aria-label="Buscar accesos">
+                <span class="diIco" aria-hidden="true">🔎</span>
+                <span class="diTxt">
+                  <span class="diTitle">Buscar</span>
+                  <span class="diSub">Encuentra rápido un módulo</span>
+                </span>
+              </button>
+
+              <button class="drawerItem" type="button" data-drawer-action="switchHub" aria-label="Cambiar Hub">
+                <span class="diIco" aria-hidden="true">🧭</span>
+                <span class="diTxt">
+                  <span class="diTitle">Cambiar Hub</span>
+                  <span class="diSub">Docentes / Admin / Practicantes</span>
+                </span>
+              </button>
+
+              <button class="drawerItem" type="button" data-drawer-action="support" aria-label="Soporte">
+                <span class="diIco" aria-hidden="true">🛟</span>
+                <span class="diTxt">
+                  <span class="diTitle">Soporte</span>
+                  <span class="diSub">Reportar un problema</span>
+                </span>
+              </button>
+            </section>
+
+            <section class="drawerSection" aria-label="Sistema">
+              <div class="drawerLabel">Sistema</div>
+
+              <div class="drawerMeta">
+                <div class="drawerMetaRow">
+                  <span class="dmKey">Versión</span>
+                  <span class="dmVal" id="drawer-build">BUILD</span>
+                </div>
+                <div class="drawerMetaRow">
+                  <span class="dmKey">Estado</span>
+                  <span class="dmVal" id="drawer-status">OK</span>
+                </div>
+              </div>
+
+              <button class="drawerItem danger" type="button" data-drawer-action="logout" aria-label="Cerrar sesión">
+                <span class="diIco" aria-hidden="true">🚪</span>
+                <span class="diTxt">
+                  <span class="diTitle">Cerrar sesión</span>
+                  <span class="diSub">Salir de este dispositivo</span>
+                </span>
+              </button>
+            </section>
+          </div>
+
+          <div class="drawerFoot">
+            <button class="btnGhost drawerFootBtn" id="btn-drawer-install" type="button" hidden>
+              Instalar app
+            </button>
+          </div>
+        </aside>
+      </main>
+
+      <script src="https://unpkg.com/html5-qrcode"></script>
+  <script type="module" src="./app.js?v=2026-10-21.1"></script>
+      <noscript>Esta app necesita JavaScript para funcionar.</noscript>
+    </div>
+  </div>
+
+  <!-- Nota: Dejé 2 toasts (uno por vista) para que el layout no “salte”. -->
+</body>
+</html>

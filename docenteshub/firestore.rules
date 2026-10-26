@@ -1,0 +1,446 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ====================================================================
+       FUNCIONES BASE DE ACCESO
+    ==================================================================== */
+
+    function signedIn() {
+      return request.auth != null && request.auth.token.email != null;
+    }
+
+    function googleUser() {
+      return signedIn()
+        && request.auth.token.firebase.sign_in_provider == "google.com";
+    }
+
+    // Lista base del Hub. Sigue funcionando aunque hubUsers esté vacío.
+    // Se puede inhabilitar a un docente base con un doc en hubUsers
+    // que tenga enabled == false.
+    function baseHubEmail() {
+      return request.auth.token.email in [
+        'alekcaballeromusic@gmail.com',
+        'catalina.medina.leal@gmail.com',
+        'emilybg0102@gmail.com',
+        'annitolad@gmail.com',
+        'lorenaduarte.404@gmail.com',
+        'malego2709@gmail.com',
+        'bagutierrezm@gmail.com',
+        'tiritiri.riri@gmail.com',
+        'darasaxcifuentes@gmail.com'
+      ];
+    }
+
+    function hubUserPath() {
+      return /databases/$(database)/documents/hubUsers/$(request.auth.token.email);
+    }
+
+    // Acceso temporal:
+    // accessExpiresAt puede ser epoch ms, número o timestamp.
+    // Si no existe, es null o es 0, no vence.
+    function hubNotExpired() {
+      return !('accessExpiresAt' in get(hubUserPath()).data)
+        || get(hubUserPath()).data.accessExpiresAt == null
+        || get(hubUserPath()).data.accessExpiresAt == 0
+        || (
+          get(hubUserPath()).data.accessExpiresAt is int
+          && request.time.toMillis() <= get(hubUserPath()).data.accessExpiresAt
+        )
+        || (
+          get(hubUserPath()).data.accessExpiresAt is float
+          && request.time.toMillis() <= get(hubUserPath()).data.accessExpiresAt
+        )
+        || (
+          get(hubUserPath()).data.accessExpiresAt is timestamp
+          && request.time <= get(hubUserPath()).data.accessExpiresAt
+        );
+    }
+
+    function hubManagedEnabled() {
+      return exists(hubUserPath())
+        && get(hubUserPath()).data.enabled == true
+        && hubNotExpired();
+    }
+
+    function hubManagedDisabled() {
+      return exists(hubUserPath())
+        && get(hubUserPath()).data.enabled == false;
+    }
+
+    // Tiene acceso si:
+    // - está en la lista base y no está inhabilitado
+    // - o tiene un documento en hubUsers con enabled == true y no vencido.
+    function isTeacherHubUser() {
+      return signedIn()
+        && (
+          (baseHubEmail() && !hubManagedDisabled())
+          || hubManagedEnabled()
+        );
+    }
+
+    function isAdminReader() {
+      return signedIn()
+        && request.auth.token.email in [
+          'alekcaballeromusic@gmail.com',
+          'catalina.medina.leal@gmail.com',
+          'musicalaasesor@gmail.com',
+          'adminmusicala@gmail.com'
+        ];
+    }
+
+    // Admin específico para módulos administrativos.
+    function isManagerAdmin() {
+      return googleUser()
+        && request.auth.token.email in [
+          'alekcaballeromusic@gmail.com',
+          'catalina.medina.leal@gmail.com',
+          'musicalaasesor@gmail.com',
+          'adminmusicala@gmail.com'
+        ];
+    }
+
+
+    /* ====================================================================
+       MÓDULO INGRESO / SALIDA DOCENTES
+    ==================================================================== */
+
+    function writesOwnTeacherRecord() {
+      return isTeacherHubUser()
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.role == 'docente'
+        && request.resource.data.action in [
+          'inicio_clase',
+          'fin_jornada'
+        ]
+        && request.resource.data.modalidad in [
+          'sede',
+          'hogar',
+          'virtual',
+          'jornada'
+        ]
+        && request.resource.data.source in [
+          'qr_sede',
+          'manual_hogar',
+          'manual_virtual',
+          'manual_fin',
+          'auto_cierre',
+          'auto_fin_sin_cierre'
+        ];
+    }
+
+    function readsOwnRecord() {
+      return isTeacherHubUser()
+        && resource.data.email == request.auth.token.email;
+    }
+
+    function writesOwnTeacherShiftSession(sessionId) {
+      return isTeacherHubUser()
+        && sessionId == request.auth.uid
+        && request.resource.data.email == request.auth.token.email;
+    }
+
+    match /teacherClassStartRecords/{recordId} {
+      allow create: if writesOwnTeacherRecord() || isAdminReader();
+      allow read: if readsOwnRecord() || isAdminReader();
+      // Solo un administrador puede corregir/anular una marcación desde el panel.
+      // El borrado físico sigue prohibido: las anulaciones son lógicas (voided:true)
+      // y toda corrección queda auditada en el propio documento.
+      allow update: if isAdminReader();
+      allow delete: if false;
+    }
+
+    match /teacherOpenShiftSessions/{sessionId} {
+      allow get: if (
+        isTeacherHubUser()
+        && sessionId == request.auth.uid
+      ) || isAdminReader();
+
+      allow list: if isAdminReader();
+
+      allow create, update: if writesOwnTeacherShiftSession(sessionId)
+        || isAdminReader();
+
+      allow delete: if false;
+    }
+
+
+    /* ====================================================================
+       HORARIOS DOCENTES
+    ==================================================================== */
+
+    match /teacherSchedules/{email} {
+      allow get: if isAdminReader()
+        || (
+          signedIn()
+          && email == request.auth.token.email
+        );
+
+      allow list, create, update, delete: if isAdminReader();
+    }
+
+    match /teacherScheduleOverrides/{overrideId} {
+      allow get: if isAdminReader()
+        || (
+          signedIn()
+          && resource.data.email == request.auth.token.email
+        );
+
+      allow list, create, update, delete: if isAdminReader();
+    }
+
+
+    /* ====================================================================
+       MÓDULO BITÁCORA ACADÉMICA
+       Trabajo por objetivos
+    ==================================================================== */
+
+    function academicReadOwn() {
+      return isTeacherHubUser()
+        && resource.data.teacherEmail == request.auth.token.email;
+    }
+
+    function academicCreateOwn() {
+      return isTeacherHubUser()
+        && request.resource.data.teacherEmail == request.auth.token.email;
+    }
+
+    function academicUpdateOwn() {
+      return isTeacherHubUser()
+        && resource.data.teacherEmail == request.auth.token.email
+        && request.resource.data.teacherEmail == request.auth.token.email;
+    }
+
+    function academicDeleteOwn() {
+      return isTeacherHubUser()
+        && resource.data.teacherEmail == request.auth.token.email;
+    }
+
+    match /academicObjectives/{docId} {
+      allow read: if isAdminReader() || academicReadOwn();
+      allow create: if isAdminReader() || academicCreateOwn();
+      allow update: if isAdminReader() || academicUpdateOwn();
+      allow delete: if isAdminReader();
+    }
+
+    match /academicTaskBudgets/{docId} {
+      allow read: if isAdminReader() || academicReadOwn();
+      allow create: if isAdminReader() || academicCreateOwn();
+      allow update: if isAdminReader() || academicUpdateOwn();
+      allow delete: if isAdminReader() || academicDeleteOwn();
+    }
+
+    match /academicTaskHourLogs/{docId} {
+      allow read: if isAdminReader() || academicReadOwn();
+      allow create: if isAdminReader() || academicCreateOwn();
+      allow update: if isAdminReader() || academicUpdateOwn();
+      allow delete: if isAdminReader() || academicDeleteOwn();
+    }
+
+
+    /* ====================================================================
+       GESTIÓN DE ACCESO AL HUB
+    ==================================================================== */
+
+    match /hubUsers/{userEmail} {
+      allow get: if isAdminReader()
+        || (
+          signedIn()
+          && userEmail == request.auth.token.email
+        );
+
+      allow list: if isAdminReader();
+      allow create, update, delete: if isAdminReader();
+    }
+
+    /* ====================================================================
+       VINCULACIÓN · DOCENTES DE APOYO
+       El tipo de vinculación sigue en hubUsers y solo lo administra
+       coordinación. Los datos privados y las aceptaciones viven separados.
+    ==================================================================== */
+    function isSupportTeacher(email) {
+      return signedIn()
+        && email == request.auth.token.email
+        && exists(/databases/$(database)/documents/hubUsers/$(email))
+        && get(/databases/$(database)/documents/hubUsers/$(email)).data.employmentType == 'support_contractor';
+    }
+
+    match /supportContractProfiles/{userEmail} {
+      allow get: if isAdminReader() || isSupportTeacher(userEmail);
+      allow list: if isAdminReader();
+      allow create: if isSupportTeacher(userEmail)
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.keys().hasOnly([
+          'email', 'fullName', 'documentType', 'documentNumber',
+          'documentIssueCity', 'phone', 'address', 'residenceCity',
+          'artisticArea', 'updatedAt'
+        ]);
+      allow update: if isSupportTeacher(userEmail)
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'email', 'fullName', 'documentType', 'documentNumber',
+          'documentIssueCity', 'phone', 'address', 'residenceCity',
+          'artisticArea', 'updatedAt'
+        ]);
+      allow delete: if false;
+    }
+
+    match /supportContractAcceptances/{acceptanceId} {
+      allow get: if isAdminReader() || (
+        isSupportTeacher(resource.data.teacherEmail)
+        && resource.data.teacherEmail == request.auth.token.email
+      );
+      allow list: if isAdminReader() || (
+        isSupportTeacher(request.auth.token.email)
+        && resource.data.teacherEmail == request.auth.token.email
+      );
+      allow create: if isSupportTeacher(request.resource.data.teacherEmail)
+        && request.resource.data.teacherEmail == request.auth.token.email
+        && request.resource.data.acceptedEmail == request.auth.token.email
+        && request.resource.data.userId == request.auth.uid
+        && acceptanceId == request.resource.data.teacherEmail + '_' + request.resource.data.contractVersion
+        && request.resource.data.contractVersion is string
+        && request.resource.data.acceptedAt == request.time
+        && request.resource.data.status == 'accepted';
+      allow update, delete: if false;
+    }
+
+    match /teacherDirectory/{userEmail} {
+      allow read: if true;
+      allow create, update, delete: if isAdminReader();
+    }
+
+    match /hubButtons/{buttonId} {
+      allow get, list: if isTeacherHubUser() || isAdminReader();
+      allow create, update, delete: if isAdminReader();
+    }
+
+    /* ====================================================================
+       SOPORTE Y MEJORAS DEL HUB
+       Docentes crean y consultan solo sus propios reportes. Coordinación
+       puede verlos todos y publicar el avance o la mejora realizada.
+    ==================================================================== */
+    match /supportReports/{reportId} {
+      allow create: if isTeacherHubUser()
+        && request.resource.data.reporterEmail == request.auth.token.email
+        && request.resource.data.status == 'nuevo'
+        && request.resource.data.type in ['error', 'mejora', 'duda']
+        && request.resource.data.detail is string
+        && request.resource.data.detail.size() >= 8
+        && request.resource.data.detail.size() <= 3000;
+      allow get, list: if isAdminReader()
+        || (isTeacherHubUser() && resource.data.reporterEmail == request.auth.token.email);
+      allow update, delete: if isAdminReader();
+    }
+
+
+    /* ====================================================================
+       MÓDULO RESERVAS WIX
+       Las reservas normalmente las escribe la Cloud Function con Admin SDK.
+       Los docentes solo leen sus reservas por staffEmail.
+       Admin puede leer todo y también crear/editar/borrar manualmente.
+    ==================================================================== */
+
+    function readsOwnWixBooking() {
+      return isTeacherHubUser()
+        && resource.data.staffEmail == request.auth.token.email;
+    }
+
+    match /calendarioWix/{bookingId} {
+      allow read: if isAdminReader() || readsOwnWixBooking();
+      allow create, update, delete: if isAdminReader();
+    }
+
+    match /calendarioWixSyncLogs/{logId} {
+      allow read: if isAdminReader();
+      allow create, update, delete: if false;
+    }
+
+    match /wixStaffMap/{staffKey} {
+      allow read, write: if isAdminReader();
+    }
+
+    match /wixStaffUnmatched/{staffKey} {
+      allow read, write: if isAdminReader();
+    }
+
+    match /calendarLastSeen/{userEmail} {
+      allow read: if isAdminReader() || (signedIn() && userEmail == request.auth.token.email);
+      allow create, update: if signedIn() && userEmail == request.auth.token.email;
+      allow delete: if false;
+    }
+
+
+    /* ====================================================================
+       ASIGNACIÓN DE SALONES / ESPACIOS
+       Los docentes pueden leer asignaciones.
+       Solo admins pueden crear, editar o eliminar.
+    ==================================================================== */
+
+    match /roomAssignments/{assignmentId} {
+      allow read: if isTeacherHubUser() || isAdminReader();
+      allow create, update, delete: if isAdminReader();
+    }
+
+
+    /* ====================================================================
+       MANAGER MUSICALA / NÓMINA
+       Apps internas bajo /apps/manager-musicala/...
+    ==================================================================== */
+
+    match /apps/manager-musicala/novedades_nomina/{docId} {
+      allow create: if googleUser();
+      allow read: if googleUser();
+
+      // Admin puede editar cualquier campo.
+      // El resto del equipo solo puede cambiar estado / descripción /
+      // observaciones y campos de seguimiento.
+      allow update: if isManagerAdmin()
+        || (
+          googleUser()
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            "estado",
+            "descripcion",
+            "observaciones",
+            "actualizadoPor",
+            "actualizadoEn",
+            "revisadoPor"
+          ])
+        );
+
+      allow delete: if isManagerAdmin();
+    }
+
+    match /apps/manager-musicala/empleados/{docId} {
+      allow create, read, update: if googleUser();
+      allow delete: if isManagerAdmin();
+    }
+
+    // Nómina mensual guardada:
+    // días, novedades, prestaciones.
+    // Todos los usuarios Google pueden leer.
+    // Solo admins crean, editan o eliminan.
+    match /apps/manager-musicala/nomina_mensual/{periodo} {
+      allow read: if googleUser();
+      allow create, update, delete: if isManagerAdmin();
+    }
+
+    // Cualquier otra colección dentro del Manager Musicala:
+    // lectura para usuarios Google, escritura bloqueada por defecto.
+    match /apps/manager-musicala/{document=**} {
+      allow read: if googleUser();
+      allow write: if false;
+    }
+
+
+    /* ====================================================================
+       CIERRE GENERAL
+       Todo lo que no esté declarado arriba queda bloqueado.
+    ==================================================================== */
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bitácora Académica · Musicala</title>
+  <meta name="description" content="Bitácora de tareas académicas, seguimiento de avances y bolsa de horas por objetivos para Musicala." />
+  <link rel="stylesheet" href="styles.css?v=2026-08-01.1" />
+</head>
+<body>
+  <header class="hero" role="banner">
+    <div class="hero__glow hero__glow--one"></div>
+    <div class="hero__glow hero__glow--two"></div>
+
+    <div class="shell hero__inner">
+      <div class="brand-card">
+        <img src="../../logo.png" alt="Musicala" class="logo" id="site-logo"
+             onerror="this.style.visibility='hidden'" />
+        <div>
+          <p class="eyebrow">Musicala · Gestión académica</p>
+          <h1 id="site-title">Bitácora Académica</h1>
+          <p id="site-subtitle">Seguimiento de tareas, avances y trabajo por objetivos.</p>
+          <p id="site-context" class="hero-context" hidden></p>
+        </div>
+      </div>
+
+      <div class="hero-actions" aria-label="Acciones principales">
+        <button id="btnBackHub" class="btn btn-light btn-back" type="button" hidden>← Volver al HUB</button>
+        <button id="btnReload" class="btn btn-light" type="button">↻ Recargar datos</button>
+        <button id="btnAcademicReport" class="btn btn-light" type="button" hidden>Informe para IA</button>
+        <button id="btnNewObjective" class="btn btn-dark" type="button">＋ Asignar tarea</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="shell app" id="app">
+    <section class="panel overview-panel" aria-label="Resumen general">
+      <div class="metric metric--accent">
+        <span class="metric__label">Pendientes</span>
+        <strong id="mPend">0</strong>
+        <small>Tareas por iniciar o cerrar</small>
+      </div>
+      <div class="metric">
+        <span class="metric__label">En curso</span>
+        <strong id="mCurso">0</strong>
+        <small>Con avance activo</small>
+      </div>
+      <div class="metric">
+        <span class="metric__label">Cumplidas</span>
+        <strong id="mComp">0</strong>
+        <small>Marcadas como terminadas</small>
+      </div>
+      <div class="metric">
+        <span class="metric__label">Horas estimadas</span>
+        <strong id="mEstimadas">0 h</strong>
+        <small>Planeación visible</small>
+      </div>
+      <div class="metric">
+        <span class="metric__label">Horas usadas</span>
+        <strong id="mUsadas">0 h</strong>
+        <small>Horas registradas</small>
+      </div>
+    </section>
+
+    <nav class="tabs" aria-label="Secciones">
+      <button class="tab active" data-view="resumen" type="button">Resumen</button>
+      <button class="tab" data-view="tareas" type="button">Tareas académicas</button>
+      <button class="tab" data-view="bolsa" type="button">Bolsa de horas</button>
+    </nav>
+
+    <section id="view-resumen" class="view active" aria-labelledby="resumen-title">
+      <div class="grid-2">
+        <article class="panel">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Lectura rápida</p>
+              <h2 id="resumen-title">Estado del trabajo</h2>
+            </div>
+            <span id="status" class="status" aria-live="polite">Cargando…</span>
+          </div>
+          <div id="insights" class="insights" aria-live="polite"></div>
+        </article>
+
+        <article class="panel">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Resumen</p>
+              <h2>Uso de la bolsa</h2>
+            </div>
+            <button id="btnExportHours" class="btn btn-soft" type="button">Exportar CSV</button>
+          </div>
+          <div id="budgetSummary" class="budget-summary"></div>
+        </article>
+      </div>
+
+      <article class="panel" id="panelNeedsEstimate">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Planeación</p>
+            <h2>Tareas sin horas estimadas</h2>
+          </div>
+        </div>
+        <div class="table-wrap table-wrap--soft">
+          <table id="tblNeedsEstimate">
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
+    <section id="view-tareas" class="view" aria-labelledby="tareas-title">
+      <article class="panel">
+        <div class="section-head section-head--wrap">
+          <div>
+            <p class="eyebrow">Bitácora conectada</p>
+            <h2 id="tareas-title">Tareas académicas</h2>
+          </div>
+
+          <div class="toolbar" role="search">
+            <select id="fPersona" class="control" title="Filtrar por responsable">
+              <option value="">Responsable: todos</option>
+            </select>
+            <select id="fEstado" class="control" title="Filtrar por estado">
+              <option value="">Estado: todos</option>
+            </select>
+            <select id="fUrgencia" class="control" title="Filtrar por urgencia">
+              <option value="">Urgencia: todas</option>
+            </select>
+            <input id="q" class="control control--search" type="search" placeholder="Buscar por ID, tarea, fecha, estado…" aria-label="Buscar tareas" />
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table id="tbl" aria-describedby="status">
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
+    <section id="view-bolsa" class="view" aria-labelledby="bolsa-title">
+      <div class="grid-2 grid-2--top">
+        <article class="panel">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Acuerdo de trabajo</p>
+              <h2 id="bolsa-title">Bolsa de horas / Trabajo por objetivos</h2>
+            </div>
+          </div>
+          <p class="helper-text">
+            La <strong>bolsa de horas</strong> son horas que la docente debe reponer en un rango definido. Al registrar un avance como <strong>“Bolsa de horas”</strong>, la docente elige la semana a la que desea abonarlo. Cada bolsa puede tener <strong>días de anticipación</strong> (para adelantar trabajo antes del inicio) y <strong>días de tolerancia</strong> (para reponer después del final). Una vez cumplida, ya no acepta más horas.
+          </p>
+
+          <form id="budgetForm" class="mini-form" novalidate>
+            <input id="budgetId" type="hidden" />
+            <label class="admin-only-field">
+              <span>Docente asignada</span>
+              <select id="budgetTeacherEmail"></select>
+            </label>
+            <label>
+              <span>Responsable</span>
+              <input id="budgetPerson" type="text" placeholder="Ej.: Emily Bejarano" readonly />
+            </label>
+            <label>
+              <span>Horas asignadas</span>
+              <input id="budgetHours" type="number" min="0" step="1" placeholder="Ej.: 4" />
+            </label>
+            <label>
+              <span>Minutos</span>
+              <input id="budgetMinutes" type="number" min="0" max="59" step="1" placeholder="Ej.: 15" />
+            </label>
+            <label>
+              <span>Cumplir desde <abbr title="Obligatorio" aria-hidden="true">*</abbr></span>
+              <input id="budgetStart" type="date" required />
+            </label>
+            <label>
+              <span>Cumplir hasta <abbr title="Obligatorio" aria-hidden="true">*</abbr></span>
+              <input id="budgetEnd" type="date" required />
+            </label>
+            <label>
+              <span>Días de anticipación</span>
+              <input id="budgetLeadDays" type="number" min="0" max="30" step="1" value="0" required />
+            </label>
+            <label>
+              <span>Días adicionales de tolerancia</span>
+              <input id="budgetToleranceDays" type="number" min="0" max="30" step="1" value="7" required />
+            </label>
+            <label class="mini-form__full">
+              <span>Nota del acuerdo</span>
+              <input id="budgetNote" type="text" placeholder="Ej.: Reposición de jornada / tareas académicas remotas" />
+            </label>
+            <div class="mini-form__actions">
+              <button class="btn btn-dark" id="budgetSubmit" type="submit">Guardar bolsa</button>
+              <button class="btn btn-soft" id="budgetCancelEdit" type="button" hidden>Cancelar edición</button>
+              <button class="btn btn-soft" id="btnClearLocal" type="button">Limpiar datos locales</button>
+            </div>
+          </form>
+        </article>
+
+        <article class="panel">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Semáforo</p>
+              <h2>Balance de horas</h2>
+            </div>
+          </div>
+          <div id="hourBalance" class="hour-balance"></div>
+        </article>
+      </div>
+
+      <article class="panel">
+        <div class="section-head section-head--wrap">
+          <div>
+            <p class="eyebrow">Planeación</p>
+            <h2>Tareas con estimación</h2>
+          </div>
+          <div class="toolbar">
+            <select id="fBolsaPersona" class="control">
+              <option value="">Responsable: todos</option>
+            </select>
+            <input id="qBolsa" class="control control--search" type="search" placeholder="Buscar tarea u objetivo…" />
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table id="tblObjectives">
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="section-head section-head--wrap">
+          <div>
+            <p class="eyebrow">Evidencia</p>
+            <h2>Uso registrado de horas</h2>
+          </div>
+          <div class="toolbar">
+            <button id="btnExportJson" class="btn btn-soft" type="button">Exportar respaldo JSON</button>
+            <label class="btn btn-soft file-btn">
+              Importar respaldo
+              <input id="importJson" type="file" accept="application/json" />
+            </label>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table id="tblHourLogs">
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <div id="modalAcademicReport" class="modal" aria-hidden="true">
+    <div class="modal__backdrop" data-close="1" aria-hidden="true"></div>
+    <div class="modal__dialog modal__dialog--small" role="dialog" aria-modal="true" aria-labelledby="academicReportTitle">
+      <header class="modal__header">
+        <div><p class="eyebrow">Solo coordinación</p><h3 id="academicReportTitle">Descargar informe para IA</h3></div>
+        <button class="btn btn-icon modal__close" type="button" aria-label="Cerrar" data-close="1">×</button>
+      </header>
+      <div class="modal__content">
+        <p class="helper-text">Incluye tareas, registros textuales, horas y estados. El informe trae una instrucción lista para que una IA evalúe coherencia, diligenciamiento y avance.</p>
+        <label><span>Información a incluir</span><select id="academicReportTeacher" class="control"><option value="">Todas las docentes</option></select></label>
+        <div class="form-actions"><button id="btnDownloadAcademicReport" class="btn btn-dark" type="button">Descargar informe Markdown</button><button class="btn btn-soft" type="button" data-close="1">Cancelar</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalLog" class="modal" aria-hidden="true">
+    <div class="modal__backdrop" data-close="1" aria-hidden="true"></div>
+    <div class="modal__dialog" role="dialog" aria-modal="true" aria-labelledby="modalLogTitle">
+      <header class="modal__header">
+        <div>
+          <p class="eyebrow">Seguimiento</p>
+          <h3 id="modalLogTitle">Bitácora de la tarea</h3>
+        </div>
+        <button class="btn btn-icon modal__close" type="button" aria-label="Cerrar" data-close="1">✕</button>
+      </header>
+
+      <div class="modal__content">
+        <div class="task-summary">
+          <div>
+            <span>Tarea agregada</span>
+            <strong id="logTaskIdTxt">—</strong>
+          </div>
+          <div>
+            <span>Tarea</span>
+            <strong id="logTaskName">—</strong>
+          </div>
+          <div>
+            <span>Responsable</span>
+            <strong id="logTaskPerson">—</strong>
+          </div>
+          <div>
+            <span>Estado</span>
+            <strong id="logTaskState">—</strong>
+          </div>
+        </div>
+
+        <section id="adminLogOverview" class="admin-log-overview" hidden aria-label="Resumen de supervisión">
+          <div><span>Registros</span><strong id="logCount">0</strong></div>
+          <div><span>Horas registradas</span><strong id="logTotalHours">0 h</strong></div>
+          <div><span>Último avance</span><strong id="logLastUpdate">Sin registros</strong></div>
+        </section>
+
+        <div class="modal-grid">
+          <section class="subpanel">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Acuerdo previo</p>
+                <h4>Gestión de la tarea</h4>
+              </div>
+            </div>
+            <form id="estimateForm" class="mini-form mini-form--one" novalidate>
+              <input type="hidden" id="estimateTaskId" />
+              <label>
+                <span>Tarea</span>
+                <input id="estimateTitle" type="text" required />
+              </label>
+              <label>
+                <span>Estado</span>
+                <select id="estimateState">
+                  <option>Pendiente</option>
+                  <option>En curso</option>
+                  <option>Cumplido</option>
+                  <option>Pausado</option>
+                  <option>Cancelado</option>
+                </select>
+              </label>
+              <label>
+                <span>Periodo</span>
+                <input id="estimatePeriod" type="month" />
+              </label>
+              <label>
+                <span>Horas estimadas</span>
+                <input id="estimateHours" type="number" min="0" step="0.25" placeholder="Ej.: 2.5" />
+              </label>
+              <label>
+                <span>Categoría</span>
+                <select id="estimateCategory">
+                  <option value="">Sin categoría</option>
+                  <option>Planeación de clase</option>
+                  <option>Material pedagógico</option>
+                  <option>Informe / documentación</option>
+                  <option>Revisión académica</option>
+                  <option>Comunicación / seguimiento</option>
+                  <option>Otro</option>
+                </select>
+              </label>
+              <label>
+                <span>Criterio de cierre</span>
+                <textarea id="estimateCriteria" rows="3" placeholder="Ej.: Documento final revisado, cargado y socializado."></textarea>
+              </label>
+              <label>
+                <span>Descripción / entregable</span>
+                <textarea id="estimateDescription" rows="3" placeholder="Qué debe quedar hecho para considerar cumplida la tarea."></textarea>
+              </label>
+              <label>
+                <span>Nota administrativa (opcional)</span>
+                <textarea id="estimateAdminNote" rows="2" placeholder="Ej.: Se pausa hasta nueva fecha de coordinación."></textarea>
+              </label>
+              <p id="estimateAdminHistory" class="helper-text"></p>
+              <button id="estimateSubmit" class="btn btn-dark" type="submit">Guardar cambios</button>
+              <p id="estimateSaveStatus" class="save-feedback" aria-live="polite" hidden></p>
+              <button id="btnDeleteObjective" class="btn btn-danger" type="button">Eliminar tarea y registros</button>
+            </form>
+          </section>
+
+          <section class="subpanel">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Historial</p>
+                <h4 id="logHistoryTitle">Registros existentes</h4>
+              </div>
+              <span id="logStatus" class="status" aria-live="polite"></span>
+            </div>
+            <div id="logTimeline" class="log-timeline"></div>
+          </section>
+        </div>
+
+        <section id="logEntryPanel" class="subpanel subpanel--wide">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Evidencia + horas</p>
+              <h4>Agregar registro de avance</h4>
+            </div>
+          </div>
+          <form id="logForm" class="form-grid" aria-describedby="logStatus" novalidate>
+            <input type="hidden" id="logTaskId" />
+            <input type="hidden" id="logTaskSource" />
+
+            <label>
+              <span>Inicio <abbr title="Obligatorio" aria-hidden="true">*</abbr></span>
+              <input type="datetime-local" id="logInicio" required aria-required="true" />
+            </label>
+
+            <label>
+              <span>Fin <abbr title="Obligatorio" aria-hidden="true">*</abbr></span>
+              <input type="datetime-local" id="logFin" required aria-required="true" />
+            </label>
+
+            <label>
+              <span>Horas reconocidas</span>
+              <input type="number" id="logHorasReconocidas" min="0" step="0.25" placeholder="Auto" />
+            </label>
+
+            <label>
+              <span>¿Cómo se trabajó? <abbr title="Obligatorio" aria-hidden="true">*</abbr></span>
+              <select id="logScope" required aria-required="true">
+                <option value="jornada">Jornada normal (no cuenta para bolsa)</option>
+                <option value="bolsa">Bolsa de horas (remoto · cuenta para las horas que debo)</option>
+              </select>
+            </label>
+
+            <label id="logBudgetField" hidden>
+              <span>¿A qué bolsa se suman estas horas? <abbr title="Obligatorio" aria-hidden="true">*</abbr></span>
+              <select id="logBudgetId"></select>
+            </label>
+
+            <label class="full">
+              <span class="status" id="logScopeHint">Marca “Bolsa de horas” solo si este rato es trabajo remoto que repone horas pendientes.</span>
+            </label>
+
+            <label>
+              <span>Tipo de trabajo</span>
+              <select id="logTipoTrabajo">
+                <option>Trabajo por objetivos</option>
+                <option>Corrección / ajuste</option>
+                <option>Planeación</option>
+                <option>Documentación</option>
+                <option>Seguimiento</option>
+                <option>Otro</option>
+              </select>
+            </label>
+
+            <label>
+              <span>Estado al cerrar <abbr title="Obligatorio" aria-hidden="true">*</abbr></span>
+              <select id="logEstado" required aria-required="true">
+                <option value="">— Selecciona —</option>
+                <option>Pendiente</option>
+                <option>En curso</option>
+                <option>Cumplido</option>
+              </select>
+            </label>
+
+            <label class="full">
+              <span>¿Qué se avanzó? <abbr title="Obligatorio" aria-hidden="true">*</abbr></span>
+              <textarea id="logAvanzo" rows="3" required aria-required="true" placeholder="Ej.: Se diseñaron las actividades de la guía y se ajustaron instrucciones."></textarea>
+            </label>
+
+            <label class="full">
+              <span>¿Qué falta?</span>
+              <textarea id="logFalta" rows="3" placeholder="Ej.: Revisión final de coordinación, agregar imágenes, subir al drive."></textarea>
+            </label>
+
+            <label class="full">
+              <span>¿Qué se debe mejorar?</span>
+              <textarea id="logMejorar" rows="3" placeholder="Ej.: Aclarar tiempos de ejecución y simplificar ejemplos."></textarea>
+            </label>
+
+            <fieldset class="evidence-field full">
+              <legend>Evidencias del avance</legend>
+              <label>
+                <span>Fotos o videos</span>
+                <input id="logEvidenceFiles" type="file" accept="image/*,video/*" multiple />
+                <small class="field-hint">Hasta 5 archivos. Cada foto puede pesar máximo 8 MB y cada video máximo 30 MB.</small>
+              </label>
+              <label>
+                <span>Links de evidencia</span>
+                <textarea id="logEvidenceLinks" rows="3" placeholder="Pega un link por línea: Drive, YouTube, Canva, documento, etc."></textarea>
+                <small class="field-hint">Máximo 5 enlaces que comiencen por http:// o https://.</small>
+              </label>
+            </fieldset>
+
+            <div class="form-actions full">
+              <button type="submit" class="btn btn-dark">Guardar registro</button>
+              <button type="button" class="btn btn-soft" data-close="1">Cerrar</button>
+              <p id="durationPreview" class="status duration-preview">Duración: —</p>
+            </div>
+          </form>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalObjective" class="modal" aria-hidden="true">
+    <div class="modal__backdrop" data-close="1" aria-hidden="true"></div>
+    <div class="modal__dialog modal__dialog--small" role="dialog" aria-modal="true" aria-labelledby="modalObjectiveTitle">
+      <header class="modal__header">
+        <div>
+          <p class="eyebrow">Asignación académica</p>
+          <h3 id="modalObjectiveTitle">Nueva tarea académica</h3>
+        </div>
+        <button class="btn btn-icon modal__close" type="button" aria-label="Cerrar" data-close="1">✕</button>
+      </header>
+
+      <form id="objectiveForm" class="modal__content form-grid form-grid--compact" novalidate>
+        <label class="full admin-only-field">
+          <span>Docente asignada</span>
+          <select id="objTeacherEmail"></select>
+        </label>
+        <label class="full">
+          <span>Tarea / objetivo <abbr title="Obligatorio">*</abbr></span>
+          <input id="objTitle" type="text" required placeholder="Ej.: Preparar guía de lectura rítmica para ciclo I" />
+        </label>
+        <label>
+          <span>Responsable</span>
+          <input id="objPerson" type="text" placeholder="Ej.: Emily Bejarano" readonly />
+        </label>
+        <label>
+          <span>Periodo</span>
+          <input id="objPeriod" type="month" />
+        </label>
+        <label>
+          <span>Horas estimadas (opcional)</span>
+          <input id="objHours" type="number" min="0" step="0.25" placeholder="Ej.: 3" />
+        </label>
+        <label>
+          <span>Categoría</span>
+          <select id="objCategory">
+            <option>Planeación de clase</option>
+            <option>Material pedagógico</option>
+            <option>Informe / documentación</option>
+            <option>Revisión académica</option>
+            <option>Comunicación / seguimiento</option>
+            <option>Otro</option>
+          </select>
+        </label>
+        <label>
+          <span>Estado</span>
+          <select id="objState">
+            <option>Pendiente</option>
+            <option>En curso</option>
+            <option>Cumplido</option>
+            <option>Pausado</option>
+            <option>Cancelado</option>
+          </select>
+        </label>
+        <label class="full">
+          <span>Descripción / entregable</span>
+          <textarea id="objDescription" rows="3" placeholder="Qué debe quedar hecho para considerar cumplida la tarea."></textarea>
+        </label>
+        <div class="form-actions full">
+          <button class="btn btn-dark" type="submit">Crear / asignar tarea</button>
+          <button class="btn btn-soft" type="button" data-close="1">Cancelar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <template id="emptyStateTpl">
+    <tr><td colspan="10" class="empty-state">No hay información para mostrar todavía.</td></tr>
+  </template>
+
+  <noscript>
+    <p class="noscript">Activa JavaScript para usar la bitácora y la bolsa de horas.</p>
+  </noscript>
+
+  <script type="module" src="script.js?v=2026-08-03.1"></script>
+</body>
+</html>
