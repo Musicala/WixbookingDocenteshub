@@ -103,6 +103,17 @@ const ROOMS = [
 ];
 const STUDENT_LOCATION_ROOM_INDEX = ROOMS.length - 1;
 
+/* Los nombres de ROOMS se guardan así en Firestore; solo al mostrarlos se
+   les ponen las tildes. */
+function displayRoomName(name) {
+  return String(name || "")
+    .replace(/\bSalon\b/g, "Salón")
+    .replace(/\bsalon\b/g, "salón")
+    .replace(/\bUbicacion\b/g, "Ubicación")
+    .replace(/\bMultiproposito\b/g, "Multipropósito")
+    .replace(/\bMusica\b/g, "Música");
+}
+
 /* ----------------- Normalización de estados ----------------- */
 
 const STATUS_MAP = {
@@ -497,19 +508,21 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
           ${isCleaningUser ? "" : `<button type="button" class="mcal__mode-button${state.displayMode === "calendar" ? " is-active" : ""}" data-mcal-mode="calendar">Calendario</button>`}
           <button type="button" class="mcal__mode-button${state.displayMode === "rooms" ? " is-active" : ""}" data-mcal-mode="rooms">Salones</button>
         </div>
-        <button type="button" class="mcal__refresh-button" id="mcal-refresh-button" aria-label="Actualizar las clases visibles">↻ Actualizar clases</button>
+        <button type="button" class="mcal__refresh-button" id="mcal-refresh-button" aria-label="Volver a cargar las clases visibles" title="Volver a cargar las clases visibles">↻ Recargar</button>
         ${isAdmin ? renderAdminFiltersHTML() : ""}
       </header>
-      <div class="mcal__legend" role="note">
-        <span class="mcal__chip mcal__chip--confirmed">Confirmada</span>
-        <span class="mcal__chip mcal__chip--pending">Pendiente</span>
-        <span class="mcal__chip mcal__chip--rescheduled">Reagendada</span>
-        <span class="mcal__chip mcal__chip--updated">Actualizada</span>
-        <span class="mcal__chip mcal__chip--blocked">Bloqueado</span>
-        <span class="mcal__chip mcal__chip--cancelled">Cancelada</span>
-      </div>
       <div class="mcal-updates" id="mcal-updates" hidden></div>
-      <section class="mcal-today" id="mcal-today" aria-live="polite"></section>
+      <div class="mcal__statusbar">
+        <section class="mcal-today" id="mcal-today" aria-live="polite"></section>
+        <div class="mcal__legend" role="note" aria-label="Estados de las clases">
+          <span class="mcal__chip mcal__chip--confirmed">Confirmada</span>
+          <span class="mcal__chip mcal__chip--pending">Pendiente</span>
+          <span class="mcal__chip mcal__chip--rescheduled">Reagendada</span>
+          <span class="mcal__chip mcal__chip--updated">Actualizada</span>
+          <span class="mcal__chip mcal__chip--blocked">Bloqueado</span>
+          <span class="mcal__chip mcal__chip--cancelled">Cancelada</span>
+        </div>
+      </div>
       <div class="mcal__calendar" id="mcal-calendar"${state.displayMode !== "calendar" ? " hidden" : ""}></div>
       <div class="mcal-rooms" id="mcal-rooms"${state.displayMode !== "rooms" ? " hidden" : ""}></div>
       <p class="mcal__empty" id="mcal-empty" hidden>
@@ -570,27 +583,42 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
         <details class="mcal__tools">
           <summary>Herramientas de coordinación</summary>
           <div class="mcal__tools-body">
-            <label class="mcal__filter">
-              <span>Revisión</span>
-              <select id="mcal-f-especial">
-                <option value="">—</option>
-                <option value="sin-docente">Sin docente</option>
-                <option value="canceladas">Solo canceladas</option>
-                <option value="ocultas">Historial: canceladas y versiones previas</option>
-                <option value="incompletas">Datos incompletos</option>
-              </select>
-            </label>
-            <label class="mcal__filter">
-              <span>Día Wix</span>
-              <input id="mcal-wix-sync-date" type="date">
-            </label>
-            <button type="button" class="mcal__settings-button" id="mcal-wix-sync-button">Sincronizar Wix</button>
-            <label class="mcal__upload">
-              <span>Emergencia</span>
-              <input id="mcal-csv-upload" type="file" accept=".csv,text/csv" hidden>
-              <button type="button" id="mcal-csv-button">Subir CSV</button>
-            </label>
-            <button type="button" class="mcal__settings-button" id="mcal-staff-settings-button">Vincular docentes <span class="mcal__settings-badge" id="mcal-staff-pending-badge" hidden></span></button>
+            <!-- Cada tarjeta es una tarea: revisar, traer de Wix, docentes, emergencia. -->
+            <div class="mcal__tool-card">
+              <h4>Revisar reservas</h4>
+              <label class="mcal__filter">
+                <span>Mostrar solo</span>
+                <select id="mcal-f-especial">
+                  <option value="">Todas las reservas</option>
+                  <option value="sin-docente">Sin docente</option>
+                  <option value="canceladas">Solo canceladas</option>
+                  <option value="ocultas">Historial: canceladas y versiones previas</option>
+                  <option value="incompletas">Datos incompletos</option>
+                </select>
+              </label>
+            </div>
+            <div class="mcal__tool-card">
+              <h4>Traer clases de Wix</h4>
+              <div class="mcal__tool-row">
+                <label class="mcal__filter">
+                  <span>Día</span>
+                  <input id="mcal-wix-sync-date" type="date">
+                </label>
+                <button type="button" class="mcal__settings-button" id="mcal-wix-sync-button">↻ Sincronizar Wix</button>
+              </div>
+            </div>
+            <div class="mcal__tool-card">
+              <h4>Docentes</h4>
+              <button type="button" class="mcal__settings-button" id="mcal-staff-settings-button">Vincular docentes <span class="mcal__settings-badge" id="mcal-staff-pending-badge" hidden></span></button>
+            </div>
+            <div class="mcal__tool-card mcal__tool-card--emergency">
+              <h4>Emergencia</h4>
+              <label class="mcal__upload">
+                <span class="mcal-visually-hidden">Subir archivo CSV de Wix</span>
+                <input id="mcal-csv-upload" type="file" accept=".csv,text/csv" hidden>
+                <button type="button" id="mcal-csv-button">Subir CSV de Wix</button>
+              </label>
+            </div>
             <p class="mcal__upload-status" id="mcal-upload-status" aria-live="polite"></p>
           </div>
         </details>
@@ -626,6 +654,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
               </div>
             </div>
             <div class="mcal-settings__manual">
+              <h4>Vincular nombre de Wix con un correo</h4>
               <label>
                 <span>Nombre en Wix</span>
                 <input id="mcal-staff-name" type="text" placeholder="Ej. Angie Nitola">
@@ -739,7 +768,21 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     slotDuration: "00:30:00",
     allDaySlot: false,
     firstDay: 1, // lunes
-    dayMaxEventRows: 4,
+    dayMaxEventRows: 6, // Mes: hasta 5 clases por día a la vista + "+N más"
+    /* Mes: el número de cada día abre la agenda de ese día. */
+    /* Lista: cada día con un solo encabezado legible ("lunes, 19 de octubre"). */
+    listDayFormat: { weekday: "long", day: "numeric", month: "long" },
+    listDaySideFormat: false,
+    navLinks: true,
+    navLinkDayClick(date) {
+      state.calendar.changeView("listDay");
+      state.calendar.gotoDate(date);
+    },
+    /* Semana con horas: una clase visible por franja (y el enlace "+N más") para que
+       el texto se pueda leer completo. */
+    slotEventOverlap: false,
+    eventMaxStack: 1,
+    moreLinkContent: (arg) => `+${arg.num} más`,
     eventTimeFormat: { hour: "numeric", minute: "2-digit", meridiem: "short" },
     displayEventEnd: false,
 
@@ -789,11 +832,24 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       const dot = !cancelled && p.accentColor
         ? `<span class="mcal-ev__dot" style="background:${escapeHTML(p.accentColor)}"></span>`
         : "";
+      if (arg.view.type === "dayGridMonth") {
+        // Mes: una sola línea por clase (hora + servicio), para que quepan
+        // varias por día; el resto queda en "+N más". En el celular solo se
+        // ven punto y hora; al tocar el número del día se abre ese día.
+        const who = p.isGroup ? `${p.groupCount} participantes` : (p.customerName || p.staffName || "");
+        const fullText = [arg.timeText, p.serviceName || "Clase", who].filter(Boolean).join(" · ");
+        return {
+          html: `
+            <div class="mcal-ev mcal-ev--month" title="${escapeHTML(fullText)}">
+              ${dot}${time}<span class="mcal-ev__main">${planningWarning}${availabilityWarning}${prefix}${escapeHTML(p.serviceName || "Clase")}</span>
+            </div>`,
+        };
+      }
       let extra;
       if (isMobile) {
         // En el celular (docente) la fila es una tarjeta tipo agenda: título,
         // salón/modalidad, estudiantes visibles de una vez y estado como chip.
-        const subBits = [roomName, p.modality].filter(Boolean);
+        const subBits = [displayRoomName(roomName), p.modality].filter(Boolean);
         const sub = subBits.length
           ? `<span class="mcal-ev__sub">${escapeHTML(subBits.join(" · "))}</span>`
           : "";
@@ -815,9 +871,38 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
               <span class="mcal-ev__chevron" aria-hidden="true">›</span>
             </div>`,
         };
+      } else if (arg.view.type.startsWith("list")) {
+        // Lista en computador: la hora ya está en su columna; aquí van la
+        // clase, quién, salón/modalidad y el estado como etiqueta.
+        const who = p.isGroup ? `${p.groupCount} participantes` : (p.customerName || p.staffName || "Sin nombre");
+        const subBits = [who, displayRoomName(roomName), p.modality].filter(Boolean);
+        const chip = `<span class="mcal-ev__meta mcal-ev__meta--status is-${p.statusKey}">${escapeHTML(STATUS_LABELS[p.statusKey] || p.statusKey || "")}</span>`;
+        return {
+          html: `
+            <div class="mcal-ev mcal-ev--list">
+              <span class="mcal-ev__main">${planningWarning}${availabilityWarning}${prefix}${escapeHTML(p.serviceName || "Clase")}</span>
+              <span class="mcal-ev__sub">${escapeHTML(subBits.join(" · "))}</span>
+              ${chip}
+            </div>`,
+        };
+      } else if (arg.view.type.startsWith("timeGrid")) {
+        // Semana con horas: servicio y persona en líneas separadas, para que
+        // una columna angosta no parta las palabras en pedazos.
+        const who = p.isGroup ? `${p.groupCount} participantes` : (p.customerName || p.staffName || "Sin nombre");
+        const place = displayRoomName(roomName) || p.modality;
+        const fullText = [p.serviceName || "Clase", who, place].filter(Boolean).join(" · ");
+        return {
+          html: `
+            <div class="mcal-ev mcal-ev--grid" title="${escapeHTML(fullText)}">
+              <span class="mcal-ev__top">${dot}${time}</span>
+              <span class="mcal-ev__main">${planningWarning}${availabilityWarning}${prefix}${escapeHTML(p.serviceName || "Clase")}</span>
+              <span class="mcal-ev__who">${escapeHTML(who)}</span>
+              ${place ? `<span class="mcal-ev__meta">${escapeHTML(place)}</span>` : ""}
+            </div>`,
+        };
       } else {
         extra = roomName || p.modality
-          ? `<span class="mcal-ev__meta">${escapeHTML(roomName || p.modality)}</span>`
+          ? `<span class="mcal-ev__meta">${escapeHTML(displayRoomName(roomName) || p.modality)}</span>`
           : "";
       }
       return {
@@ -951,14 +1036,14 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
 
     if (button) {
       button.disabled = true;
-      button.textContent = "↻ Actualizando…";
+      button.textContent = "↻ Recargando…";
     }
     try {
       await subscribeToRange(range.start, range.end, { force: true });
     } finally {
       if (button && !state.destroyed) {
         button.disabled = false;
-        button.textContent = "↻ Actualizar clases";
+        button.textContent = "↻ Recargar";
       }
     }
   }
@@ -1387,36 +1472,58 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     const planningAlertsHtml = planningAlerts.length ? `<div class="mcal-rooms__planning-alerts" role="status" aria-live="polite"><strong>⚠ Avisos de organización</strong><ul>${planningAlerts.map(({ event, message }) => `<li>${escapeHTML(formatTime(new Date(event.start)))} · ${escapeHTML(event.extendedProps?.serviceName || 'Clase')} · ${escapeHTML(event.extendedProps?.staffName || '')}: ${escapeHTML(message)}</li>`).join('')}</ul></div>` : '';
 
     const isCleaningView = state.roomsView === "cleaning";
-    const roomsHeading = isCleaningView
-      ? "Limpieza y aspiradora"
-      : state.roomsView === "teachers" ? "Personal del día" : "Asignación de salones";
-    const roomsDescription = isCleaningView
-      ? "Consulta los salones desocupados por cada media hora y el mejor espacio disponible para la aspiradora."
-      : state.roomsView === "teachers"
-        ? "Clases del día agrupadas por docente."
-        : (isAdmin ? "Asignación automática al recibir clases. Puedes modificarla; se usan salones anteriores cuando están disponibles." : "Tus clases del día organizadas por salón.");
+    /* Título y explicación según la pestaña abierta. */
+    const ROOMS_VIEW_TEXT = {
+      table: ["Asignación de salones", isAdmin
+        ? "Cada columna es un salón. Arrastra una clase para cambiarla de salón."
+        : "Tus clases del día organizadas por salón."],
+      live: ["En vivo", "Qué clases acaban de terminar, cuáles están en curso y cuáles siguen."],
+      rooms: ["Clases por salón", "Cuántas clases tiene cada salón en el día."],
+      teachers: ["Personal del día", "Clases del día agrupadas por docente."],
+      cleaning: ["Limpieza y aspiradora", "Salones libres por cada media hora y el mejor espacio para la aspiradora."],
+      search: ["Buscar", "Encuentra una clase del día por nombre, docente, estudiante o salón."],
+      kpis: ["Resumen del día", "Números clave de las clases y los salones."],
+    };
+    const [roomsHeading, roomsDescription] = ROOMS_VIEW_TEXT[state.roomsView] || ROOMS_VIEW_TEXT.live;
 
+    /* Orden: día que se está viendo, luego las pestañas a todo el ancho con
+       las acciones de coordinación a la derecha, y abajo el contenido. */
+    const dayLabel = day.toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
     roomsEl.innerHTML = `
       <div class="mcal-rooms__head">
-        <div>
-          <h3>${roomsHeading}</h3>
-          <p>${roomsDescription}</p>
-        </div>
         <div class="mcal-rooms__nav">
-          ${isAdmin ? `<button type="button" data-rooms-autofill>Relleno automatico</button>` : ""}
-          ${isAdmin ? `<button type="button" data-academic-task>Nueva tarea academica</button>` : ""}
-          <button type="button" data-rooms-date="-1" aria-label="Dia anterior">‹</button>
+          <button type="button" data-rooms-date="-1" aria-label="Día anterior">‹</button>
           <button type="button" data-rooms-date="today">Hoy</button>
-          <button type="button" data-rooms-date="1" aria-label="Dia siguiente">›</button>
-          <strong>${escapeHTML(day.toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long", year: "numeric" }))}</strong>
+          <button type="button" data-rooms-date="1" aria-label="Día siguiente">›</button>
+          <strong>${escapeHTML(dayLabel.charAt(0).toUpperCase() + dayLabel.slice(1))}</strong>
         </div>
-        <span class="mcal-rooms__notice" data-rooms-notice>${escapeHTML(roomsEl.dataset.loadError || roomsEl.dataset.permissionError || `${assignedEvents.length} clase(s) con salon`)}</span>
+        <span class="mcal-rooms__notice" data-rooms-notice>${escapeHTML(roomsEl.dataset.loadError || roomsEl.dataset.permissionError || `${assignedEvents.length} de ${dayEvents.length} clases con salón`)}</span>
+      </div>
+      <div class="mcal-rooms-toolbar">
+        <div class="mcal-rooms-tabs" role="tablist" aria-label="Vistas de salones">
+          ${renderRoomsTab("table", "Tabla")}
+          ${renderRoomsTab("live", "En vivo")}
+          ${renderRoomsTab("rooms", "Salones")}
+          ${isAdmin ? renderRoomsTab("teachers", "Personal") : ""}
+          ${canAccessCleaningView ? renderRoomsTab("cleaning", "Limpieza") : ""}
+          ${renderRoomsTab("search", "Buscar")}
+          ${renderRoomsTab("kpis", "KPIs")}
+        </div>
+        ${isAdmin ? `<div class="mcal-rooms-actions">
+          <button type="button" data-rooms-autofill>Relleno automático</button>
+          <button type="button" data-academic-task>+ Tarea académica</button>
+        </div>` : ""}
+      </div>
+      <div class="mcal-rooms__intro">
+        <h3>${roomsHeading}</h3>
+        <p>${roomsDescription}</p>
       </div>
       ${planningAlertsHtml}
-      <div class="mcal-rooms-layout${isCleaningView ? " mcal-rooms-layout--cleaning" : ""}">
-        ${isCleaningView ? "" : `<aside class="mcal-rooms-sidebar" aria-label="Clases sin salon asignado">
+      ${!isCleaningView && !unassignedEvents.length && dayEvents.length ? `<p class="mcal-rooms__all-set">✓ Todas las clases del día tienen salón.</p>` : ""}
+      <div class="mcal-rooms-layout${isCleaningView || !unassignedEvents.length ? " mcal-rooms-layout--cleaning" : ""}">
+        ${isCleaningView || !unassignedEvents.length ? "" : `<aside class="mcal-rooms-sidebar" aria-label="Clases sin salón asignado">
           <div class="mcal-rooms-sidebar__head">
-            <strong>Sin salon asignado</strong>
+            <strong>Sin salón asignado</strong>
             <span>${unassignedEvents.length}</span>
           </div>
           <div class="mcal-rooms-sidebar__list">
@@ -1424,15 +1531,6 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
           </div>
         </aside>`}
         <section class="mcal-rooms-main">
-          <div class="mcal-rooms-tabs" role="tablist" aria-label="Vistas de salones">
-            ${renderRoomsTab("table", "Tabla")}
-            ${renderRoomsTab("live", "En vivo")}
-            ${renderRoomsTab("rooms", "Salones")}
-            ${isAdmin ? renderRoomsTab("teachers", "Personal") : ""}
-            ${canAccessCleaningView ? renderRoomsTab("cleaning", "Limpieza") : ""}
-            ${renderRoomsTab("search", "Buscar")}
-            ${renderRoomsTab("kpis", "KPIs")}
-          </div>
           <div class="mcal-rooms-panel">
             ${renderRoomsPanel(state.roomsView, { dayEvents, assignedEvents, filteredEvents, cleaningEvents })}
           </div>
@@ -1467,7 +1565,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
           <thead>
             <tr>
               <th>Hora</th>
-              ${ROOMS.map((room) => `<th>${escapeHTML(room)}</th>`).join("")}
+              ${ROOMS.map((room) => `<th>${escapeHTML(displayRoomName(room))}</th>`).join("")}
             </tr>
           </thead>
           <tbody>
@@ -1562,7 +1660,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       </div>
       <div class="mcal-rooms__table-wrap">
         <table class="mcal-rooms-table mcal-cleaning-table">
-          <thead><tr><th>Hora</th>${physicalRooms.map((room) => `<th>${escapeHTML(room)}</th>`).join("")}<th>Aspiradora</th></tr></thead>
+          <thead><tr><th>Hora</th>${physicalRooms.map((room) => `<th>${escapeHTML(displayRoomName(room))}</th>`).join("")}<th>Aspiradora</th></tr></thead>
           <tbody>${slots.map((slot) => {
             const suggested = recommendation(slot);
             return `<tr><th>${escapeHTML(formatSlotLabel(slot))}</th>${physicalRooms.map((_, roomIndex) => {
@@ -1597,18 +1695,18 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     const next = events.filter((event) => new Date(event.start) > now).slice(0, 8);
     return `
       <div class="mcal-live-grid">
-        ${renderLiveColumn("Anterior", previous)}
-        ${renderLiveColumn("Ahora", current)}
-        ${renderLiveColumn("Siguiente", next)}
+        ${renderLiveColumn("Anterior", previous, "Nada terminó todavía.")}
+        ${renderLiveColumn("Ahora", current, "No hay clases en este momento.", "now")}
+        ${renderLiveColumn("Siguiente", next, "No quedan clases por hoy.")}
       </div>
     `;
   }
 
-  function renderLiveColumn(label, events) {
+  function renderLiveColumn(label, events, emptyText = "No hay clases.", variant = "") {
     return `
-      <section class="mcal-live-column">
-        <h4>${escapeHTML(label)}</h4>
-        ${events.length ? events.map(renderRoomListItem).join("") : `<p>No hay clases.</p>`}
+      <section class="mcal-live-column${variant ? ` mcal-live-column--${variant}` : ""}">
+        <h4>${variant === "now" ? `<span class="mcal-live-pulse" aria-hidden="true"></span>` : ""}${escapeHTML(label)} <span class="mcal-live-count">${events.length}</span></h4>
+        ${events.length ? events.map(renderRoomListItem).join("") : `<p>${escapeHTML(emptyText)}</p>`}
       </section>
     `;
   }
@@ -1620,7 +1718,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
           const matches = events.filter((event) => Number(event.extendedProps?.roomAssignment?.roomIndex) === index);
           return `
             <section class="mcal-room-column${index === STUDENT_LOCATION_ROOM_INDEX ? " mcal-room-column--student-location" : ""}" data-room-drop="${index}">
-              <h4>${escapeHTML(room)} <span>${matches.length}</span></h4>
+              <h4>${escapeHTML(displayRoomName(room))} <span>${matches.length}</span></h4>
               ${matches.length ? matches.map(renderRoomEvent).join("") : `<p>Libre</p>`}
             </section>
           `;
@@ -1657,10 +1755,11 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
   function renderRoomsSearch(events) {
     return `
       <div class="mcal-rooms-search">
-        <input type="search" data-rooms-search placeholder="Buscar clase, docente, estudiante o salon" value="${escapeHTML(state.roomsSearch)}">
+        <input type="search" data-rooms-search placeholder="🔍 Buscar clase, docente, estudiante o salón" value="${escapeHTML(state.roomsSearch)}">
+        <span class="mcal-rooms-search__count">${events.length === 1 ? "1 clase" : `${events.length} clases`}</span>
       </div>
       <div class="mcal-rooms-search-results">
-        ${events.length ? events.map(renderRoomListItem).join("") : `<p>No hay resultados.</p>`}
+        ${events.length ? events.map(renderRoomListItem).join("") : `<p>No hay clases que coincidan con la búsqueda.</p>`}
       </div>
     `;
   }
@@ -1669,19 +1768,47 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     const assigned = events.filter((event) => event.extendedProps?.roomAssignment).length;
     const teachers = new Set(events.map((event) => event.extendedProps?.staffName || "").filter(Boolean)).size;
     const occupiedRooms = new Set(events.map((event) => event.extendedProps?.roomAssignment?.roomName || "").filter(Boolean)).size;
+    const cancelled = events.filter((event) => event.extendedProps?.statusKey === "cancelled").length;
+    /* Barras simples: clases por docente y por salón, de mayor a menor. */
+    const countBy = (keyOf) => {
+      const counts = new Map();
+      events.forEach((event) => {
+        const key = keyOf(event);
+        if (key) counts.set(key, (counts.get(key) || 0) + 1);
+      });
+      return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+    };
+    const bars = (title, rows) => {
+      const max = rows[0]?.[1] || 1;
+      return `
+        <section class="mcal-kpi-bars">
+          <h4>${escapeHTML(title)}</h4>
+          ${rows.length ? rows.map(([label, value]) => `
+            <div class="mcal-kpi-bars__row">
+              <span class="mcal-kpi-bars__label" title="${escapeHTML(label)}">${escapeHTML(label)}</span>
+              <span class="mcal-kpi-bars__track"><span style="width:${Math.round((value / max) * 100)}%"></span></span>
+              <strong>${value}</strong>
+            </div>`).join("") : `<p>Sin datos para este día.</p>`}
+        </section>`;
+    };
     return `
       <div class="mcal-kpis">
         ${renderKpi("Clases", events.length)}
-        ${renderKpi("Con salon", assigned)}
-        ${renderKpi("Sin salon", events.length - assigned)}
+        ${renderKpi("Con salón", assigned)}
+        ${renderKpi("Sin salón", events.length - assigned, events.length - assigned ? "warn" : "")}
+        ${renderKpi("Canceladas", cancelled)}
         ${renderKpi("Docentes", teachers)}
-        ${renderKpi("Salones ocupados", occupiedRooms)}
+        ${renderKpi("Salones ocupados", `${occupiedRooms} de ${STUDENT_LOCATION_ROOM_INDEX}`)}
+      </div>
+      <div class="mcal-kpi-bars-grid">
+        ${bars("Clases por docente", countBy((event) => event.extendedProps?.staffName))}
+        ${bars("Clases por salón", countBy((event) => displayRoomName(event.extendedProps?.roomAssignment?.roomName)))}
       </div>
     `;
   }
 
-  function renderKpi(label, value) {
-    return `<div class="mcal-kpi"><strong>${escapeHTML(String(value))}</strong><span>${escapeHTML(label)}</span></div>`;
+  function renderKpi(label, value, variant = "") {
+    return `<div class="mcal-kpi${variant ? ` mcal-kpi--${variant}` : ""}"><strong>${escapeHTML(String(value))}</strong><span>${escapeHTML(label)}</span></div>`;
   }
 
   function getRoomsSelectedDay(events = []) {
@@ -1800,7 +1927,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
 
   function renderRoomListItem(event, draggable = false) {
     const p = event.extendedProps || {};
-    const roomName = p.roomAssignment?.roomName || p.roomAssignment?.roomLabel || "Sin salon";
+    const roomName = p.roomAssignment?.roomName || p.roomAssignment?.roomLabel || "Sin salón";
     const accent = p.accentColor || DEFAULT_ACCENT;
     return `
       <button type="button" class="mcal-room-list-item"
@@ -1811,7 +1938,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
         <span>${escapeHTML(formatTime(new Date(event.start)))} - ${escapeHTML(formatTime(new Date(event.end)))}</span>
         <b>${escapeHTML(p.serviceName || "Clase")}</b>
         ${(p.roomPlanningIssues || []).map(message => `<small>⚠ ${escapeHTML(message)}</small>`).join("")}
-        <small>${escapeHTML(roomName)} · ${escapeHTML(p.staffName || "Sin docente")}</small>
+        <small>${escapeHTML(displayRoomName(roomName))} · ${escapeHTML(p.staffName || "Sin docente")}</small>
       </button>
     `;
   }
@@ -1839,14 +1966,14 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
   }
 
   function openAcademicTaskForm() {
-    modalTitleEl.textContent = "Asignar tarea academica";
+    modalTitleEl.textContent = "Asignar tarea académica";
     modalBodyEl.innerHTML = `
       <form class="mcal-academic-task" data-academic-task-form>
         <label><span>Profesor</span><select name="staffEmail" required><option value="">Selecciona un profesor</option>${academicTaskTeacherOptions()}</select></label>
         <label><span>Fecha</span><input name="date" type="date" required value="${localDateInputValue(getRoomsSelectedDay())}"></label>
         <label><span>Hora</span><input name="time" type="time" required value="09:00"></label>
         <label><span>Duracion</span><select name="duration"><option value="30">30 minutos</option><option value="60" selected>1 hora</option><option value="90">1 hora 30</option><option value="120">2 horas</option></select></label>
-        <label><span>Salon</span><select name="roomIndex" required><option value="">Selecciona un salon</option>${ROOMS.slice(0, STUDENT_LOCATION_ROOM_INDEX).map((room, index) => `<option value="${index}">${escapeHTML(room)}</option>`).join("")}</select></label>
+        <label><span>Salón</span><select name="roomIndex" required><option value="">Selecciona un salón</option>${ROOMS.slice(0, STUDENT_LOCATION_ROOM_INDEX).map((room, index) => `<option value="${index}">${escapeHTML(displayRoomName(room))}</option>`).join("")}</select></label>
         <p class="mcal-academic-task__status" data-academic-task-status aria-live="polite"></p>
         <button type="submit">Crear tarea</button>
       </form>`;
@@ -1917,7 +2044,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       await batch.commit();
       modalEl.hidden = true;
       state.roomsDate = startOfLocalDay(start);
-      setRoomsNotice("Tarea academica creada.");
+      setRoomsNotice("Tarea académica creada.");
     } catch (error) {
       console.error("[ReservasCalendar] No se pudo crear la tarea academica:", error);
       status.textContent = humanFirestorePermissionError(error);
@@ -2113,7 +2240,14 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     container.querySelectorAll("[data-mcal-mode]").forEach((button) => {
       button.classList.toggle("is-active", button.dataset.mcalMode === state.displayMode);
     });
-    if (state.displayMode === "calendar") state.calendar?.updateSize();
+    if (state.displayMode === "calendar") {
+      state.calendar?.updateSize();
+      // El calendario vuelve a medirse cuando ya está visible; si no, las
+      // clases quedan dibujadas a otra altura que las horas.
+      requestAnimationFrame(() => {
+        if (!state.destroyed && state.displayMode === "calendar") state.calendar?.updateSize();
+      });
+    }
     if (state.displayMode === "rooms") {
       ensureRoomsDayLoaded();
       pickInitialRoomsDay();
@@ -2956,21 +3090,17 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     const cancelled = todayEvents.length - active.length;
     const rescheduled = active.filter((event) => event.extendedProps?.statusKey === "rescheduled");
     const confirmed = active.filter((event) => event.extendedProps?.statusKey === "confirmed");
-    const label = isAdmin ? "clases programadas hoy" : "clases hoy";
+    const label = isAdmin ? "clases programadas" : "clases";
 
+    /* Una sola línea: cuántas clases hay hoy y cómo están. */
     todayEl.innerHTML = `
-      <div class="mcal-today__headline">
-        <span class="mcal-today__spark">🎉</span>
-        <div>
-          <strong>${active.length ? `Tienes ${active.length} ${label}` : "No tienes clases para hoy"}</strong>
-          <span>${active.length ? "¡Sigue así, gran trabajo!" : "Disfruta el espacio o revisa la Semana."}</span>
-        </div>
-      </div>
-      <div class="mcal-today__stats">
-        <div class="is-confirmed"><strong>${confirmed.length}</strong><span>Confirmadas</span></div>
-        <div class="is-rescheduled"><strong>${rescheduled.length}</strong><span>Reprogramadas</span></div>
-        <div class="is-cancelled"><strong>${cancelled}</strong><span>Canceladas</span></div>
-      </div>`;
+      <strong class="mcal-today__title">${active.length ? `Hoy: ${active.length} ${label}` : "Hoy no hay clases"}</strong>
+      ${todayEvents.length ? `
+      <span class="mcal-today__stats">
+        <span class="is-confirmed"><strong>${confirmed.length}</strong> confirmadas</span>
+        <span class="is-rescheduled"><strong>${rescheduled.length}</strong> reprogramadas</span>
+        <span class="is-cancelled"><strong>${cancelled}</strong> canceladas</span>
+      </span>` : ""}`;
   }
 
   /* El CSV de Wix es una fotografía actual de las clases. Cuando una
@@ -3080,6 +3210,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
   }
 
   function openDetailData(b) {
+    state.lastDetail = b;
     const start = getBookingStart(b);
     const end = getBookingEnd(b, start);
     const statusKey = normalizeStatus(b.status);
@@ -3099,34 +3230,46 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
               ? b.studentEmails[0]
               : b.customerEmail,
           }];
+    /* Datos de la clase con su nombre a la vista (no solo un ícono). Fecha y
+       horario ya están en el encabezado, así que no se repiten aquí. */
     const rows = [];
-    const row = (icon, label, value, opts = {}) => {
+    const row = (label, value, opts = {}) => {
       if (value === null || value === undefined || value === "") return;
       rows.push(`
-        <div class="mcal-modal__row mcal-modal__row--icon${opts.full ? " mcal-modal__row--full" : ""}">
-          <dt aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}">${icon}</dt>
+        <div class="mcal-detail-info__row">
+          <dt>${escapeHTML(label)}</dt>
           <dd>${opts.html ? value : escapeHTML(value)}</dd>
         </div>`);
     };
+    /* Acciones de coordinación, separadas de la información. */
+    const actions = [];
+    const action = (label, html) => {
+      actions.push(`
+        <div class="mcal-detail-actions__row">
+          <span class="mcal-detail-actions__label">${escapeHTML(label)}</span>
+          <div class="mcal-detail-actions__control">${html}</div>
+        </div>`);
+    };
 
-    row("♙", "Docente", b.staffName || b.staffEmail || "Sin asignar");
-    row("▣", "Fecha", start ? start.toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "—");
-    row("◷", "Horario", `${formatTime(start)} – ${formatTime(end)}`);
-    row("⌂", "Salón", roomAssignment?.roomName || roomAssignment?.roomLabel || "Sin asignar");
-    row("⌖", "Ubicación", b.location);
-    if (participants.length > 1) row("♟", "Participantes", `${participants.length} estudiantes`);
+    const roomLabel = displayRoomName(roomAssignment?.roomName || roomAssignment?.roomLabel || "");
+    row("Docente", b.staffName || b.staffEmail || "Sin asignar");
+    row("Salón", roomLabel || "Sin asignar");
+    row("Ubicación", b.location);
+    if (participants.length > 1) row("Participantes", `${participants.length} estudiantes`);
     if (b.source === "academic-task") {
-      row("▤", "Bitácora académica", `<a class="mcal-academic-log-link" href="${ACADEMIC_LOG_URL}" target="_blank" rel="noopener noreferrer">Abrir Bitácora Académica</a>`, { full: true, html: true });
-      if (isAdmin) {
-        row("⚙", "Administrar", `<button type="button" class="mcal-academic-task-delete" data-academic-task-delete data-booking-id="${escapeHTML(b.bookingId || b._docId || "")}" data-group-key="${escapeHTML(groupKey)}">Eliminar tarea académica</button><span class="mcal-room-assign__status" data-academic-delete-status></span>`, { full: true, html: true });
-      }
+      row("Bitácora académica", `<a class="mcal-academic-log-link" href="${ACADEMIC_LOG_URL}" target="_blank" rel="noopener noreferrer">Abrir Bitácora Académica</a>`, { html: true });
     }
-    row("↻", "Última actualización", formatDateTime(updatedAt));
+    row("Última actualización", formatDateTime(updatedAt));
+    if ((b.roomPlanningIssues || []).length) row("⚠ Avisos", b.roomPlanningIssues.join(" "));
+
+    if (isAdmin && b.source === "academic-task") {
+      action("Tarea", `<button type="button" class="mcal-academic-task-delete" data-academic-task-delete data-booking-id="${escapeHTML(b.bookingId || b._docId || "")}" data-group-key="${escapeHTML(groupKey)}">Eliminar tarea académica</button><span class="mcal-room-assign__status" data-academic-delete-status></span>`);
+    }
     if (isAdmin && b.source !== "academic-task") {
-      row("✎", "Edición", `<button type="button" class="mcal-booking-edit" data-booking-edit data-group-key="${escapeHTML(groupKey)}" data-booking-id="${escapeHTML(b.bookingId || b._docId || "")}">Editar clase</button>`, { full: true, html: true });
-      row("✓", "Estado", `
+      action("Clase", `<button type="button" class="mcal-booking-edit" data-booking-edit data-group-key="${escapeHTML(groupKey)}" data-booking-id="${escapeHTML(b.bookingId || b._docId || "")}">✎ Editar clase</button>`);
+      action("Estado", `
         <label class="mcal-booking-status-control">
-          <span>Estado en agenda</span>
+          <span class="mcal-visually-hidden">Estado en agenda</span>
           <select data-booking-status-select>
             <option value="confirmed" ${statusKey === "confirmed" ? "selected" : ""}>Confirmada</option>
             <option value="pending" ${statusKey === "pending" ? "selected" : ""}>Pendiente</option>
@@ -3136,17 +3279,17 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
           </select>
         </label>
         <button type="button" class="mcal-booking-status" data-booking-status-save>Guardar estado</button>
-        <span class="mcal-room-assign__status" data-booking-status-result></span>`, { full: true, html: true });
+        <span class="mcal-room-assign__status" data-booking-status-result></span>`);
     }
     if (isAdmin && !roomAssignment?.automatic) {
-      row("⌂", "Asignar salón", renderRoomAssignmentControl(b, groupKey, roomAssignment), { full: true, html: true });
+      action("Salón", renderRoomAssignmentControl(b, groupKey, roomAssignment));
     }
 
-    row("⚠", "Avisos de organización", (b.roomPlanningIssues || []).join(" "));
     const participantsTitle = participants.length === 1 ? "Participante" : `Participantes · ${participants.length}`;
-    const dateLabel = start
+    const dateText = start
       ? start.toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long" })
       : "Fecha por confirmar";
+    const dateLabel = dateText.charAt(0).toUpperCase() + dateText.slice(1);
 
     modalBodyEl.innerHTML = `
       <section class="mcal-class-detail">
@@ -3156,7 +3299,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
             <span>${escapeHTML(dateLabel)}</span>
           </div>
           <h4>${escapeHTML(b.serviceName || "Clase")}</h4>
-          <p>${escapeHTML(formatTime(start))} – ${escapeHTML(formatTime(end))} · ${escapeHTML(roomAssignment?.roomName || roomAssignment?.roomLabel || b.location || "Ubicación por confirmar")}</p>
+          <p>${escapeHTML(formatTime(start))} – ${escapeHTML(formatTime(end))} · ${escapeHTML(roomLabel || b.location || "Salón por confirmar")}</p>
           ${isAdmin && statusKey === "cancelled" ? `<button type="button" class="mcal-booking-reactivate" data-booking-reactivate>✓ Activar clase</button>` : ""}
         </header>
         ${participants.length ? `
@@ -3169,10 +3312,18 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
           </section>` : ""}
         <section class="mcal-class-detail__section">
           <div class="mcal-class-detail__section-heading">
-            <h5>Detalles de la clase</h5>
+            <h5>Información</h5>
           </div>
-          <dl class="mcal-modal__grid">${rows.join("")}</dl>
+          <dl class="mcal-detail-info">${rows.join("")}</dl>
         </section>
+        ${actions.length ? `
+          <section class="mcal-class-detail__section mcal-detail-actions">
+            <div class="mcal-class-detail__section-heading">
+              <h5>Coordinación</h5>
+              <span>Solo visible para coordinación</span>
+            </div>
+            ${actions.join("")}
+          </section>` : ""}
       </section>`;
     modalEl.hidden = false;
     document.addEventListener("keydown", onEscClose);
@@ -3517,7 +3668,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
         <select data-room-select data-group-key="${escapeHTML(groupKey)}">
           <option value="">Sin asignar</option>
           ${ROOMS.map((room, index) => index === STUDENT_LOCATION_ROOM_INDEX ? "" : `
-            <option value="${index}" ${String(current) === String(index) ? "selected" : ""}>${escapeHTML(room)}</option>
+            <option value="${index}" ${String(current) === String(index) ? "selected" : ""}>${escapeHTML(displayRoomName(room))}</option>
           `).join("")}
         </select>
         <button type="button"
@@ -3540,8 +3691,20 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     if (e.key === "Escape") closeDetail();
   }
 
+  /* Perfil, bitácoras e historial se abren dentro de la misma ventana; este
+     botón regresa al detalle de la clase sin tener que cerrarla. */
+  function addBackToClass() {
+    if (!state.lastDetail) return;
+    modalBodyEl.insertAdjacentHTML("afterbegin",
+      `<button type="button" class="mcal-detail-back" data-detail-back>‹ Volver a la clase</button>`);
+  }
+
   async function onModalClick(e) {
     if (e.target.closest("[data-mcal-close]")) closeDetail();
+    if (e.target.closest("[data-detail-back]")) {
+      if (state.lastDetail) openDetailData(state.lastDetail);
+      return;
+    }
     const deleteTaskButton = e.target.closest("[data-academic-task-delete]");
     if (deleteTaskButton) {
       await deleteAcademicTask(deleteTaskButton);
@@ -3571,6 +3734,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       studentButton.disabled = true;
       try {
         await renderStudentClassHistory(email);
+        addBackToClass();
       } catch (error) {
         modalTitleEl.textContent = "No se pudo cargar el historial";
         modalBodyEl.innerHTML = `<p class="mcal-student-empty">${escapeHTML(error?.message || "Intenta nuevamente.")}</p>`;
@@ -3587,6 +3751,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       const data = await loadStudentHubData(email);
       if (view === "profile") renderStudentProfile(data.student, email);
       else renderStudentJournal(data.student, data.bitacoras, email);
+      addBackToClass();
     } catch (error) {
       modalTitleEl.textContent = "No se pudo cargar";
       modalBodyEl.innerHTML = `<p class="mcal-student-empty">${escapeHTML(
@@ -4227,13 +4392,24 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
         <strong>${title} (${items.length})</strong>
         <ul>${items.slice(0, 8).map((item) => `<li>${detail(item)}</li>`).join("")}${items.length > 8 ? `<li>y ${items.length - 8} más…</li>` : ""}</ul>
       </div>` : "");
+    /* Resumen de una línea con los totales; el detalle se abre a pedido para
+       que las novedades no empujen el calendario hacia abajo. */
+    const count = (items, label, cls) => (items.length
+      ? `<span class="mcal-updates__count"><span class="mcal-updates__dot mcal-updates__dot--${cls}" aria-hidden="true"></span><strong>${items.length}</strong> ${label}</span>`
+      : "");
     return `
       <div class="mcal-updates__inner" role="status">
         <div class="mcal-updates__head">
           <span class="mcal-updates__badge">Novedades desde tu última visita</span>
+          <span class="mcal-updates__counts">
+            ${count(created, created.length === 1 ? "nueva" : "nuevas", "created")}
+            ${count(cancelled, cancelled.length === 1 ? "cancelada" : "canceladas", "cancelled")}
+            ${count(rescheduled, rescheduled.length === 1 ? "reprogramada" : "reprogramadas", "rescheduled")}
+          </span>
+          <button type="button" class="mcal-updates__toggle" data-updates-toggle aria-expanded="false">Ver detalle</button>
           <button type="button" class="mcal-updates__dismiss" data-updates-dismiss aria-label="Cerrar novedades">×</button>
         </div>
-        <div class="mcal-updates__groups">
+        <div class="mcal-updates__groups" hidden>
           ${section("Nuevas clases", created, "created")}
           ${section("Canceladas", cancelled, "cancelled")}
           ${section("Reprogramadas / actualizadas", rescheduled, "rescheduled")}
@@ -4322,6 +4498,13 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       el.innerHTML = renderColoredUpdatesBanner({ cancelled, rescheduled, created });
       el.hidden = false;
       el.querySelector("[data-updates-dismiss]")?.addEventListener("click", () => { el.hidden = true; });
+      el.querySelector("[data-updates-toggle]")?.addEventListener("click", (event) => {
+        const groups = el.querySelector(".mcal-updates__groups");
+        const open = groups.hidden;
+        groups.hidden = !open;
+        event.currentTarget.setAttribute("aria-expanded", String(open));
+        event.currentTarget.textContent = open ? "Ocultar detalle" : "Ver detalle";
+      });
     } catch (error) {
       console.warn("[ReservasCalendar] No se pudo cargar novedades:", error);
     }
@@ -4381,14 +4564,29 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
       ["Estado", student.estado || student.status || (student.active === false ? "Inactivo" : "Activo")],
     ].filter(([, value]) => value);
 
+    const name = studentName(student);
+    const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+    const program = student.processLabel || student.programa || student.area || "";
+    /* La condición relevante va resaltada arriba: es lo que el docente
+       necesita saber antes de empezar la clase. */
     modalBodyEl.innerHTML = `
-      <dl class="mcal-modal__grid">
-        ${fields.map(([label, value]) => `
-          <div class="mcal-modal__row">
-            <dt>${escapeHTML(label)}</dt>
-            <dd>${escapeHTML(value)}</dd>
-          </div>`).join("")}
-      </dl>`;
+      <section class="mcal-student">
+        <header class="mcal-student__hero">
+          <span class="mcal-student__avatar" aria-hidden="true">${escapeHTML(initials || "?")}</span>
+          <div>
+            <h4>${escapeHTML(name)}</h4>
+            <p>${escapeHTML([program, emphasis, student.nivel || student.level].filter(Boolean).join(" · ") || "Estudiante de Musicala")}</p>
+          </div>
+        </header>
+        ${condition ? `<p class="mcal-student__alert"><strong>Condición relevante:</strong> ${escapeHTML(condition)}</p>` : ""}
+        <dl class="mcal-detail-info">
+          ${fields.filter(([label]) => label !== "Nombre" && !(label === "Condiciones relevantes" && condition)).map(([label, value]) => `
+            <div class="mcal-detail-info__row">
+              <dt>${escapeHTML(label)}</dt>
+              <dd>${escapeHTML(value)}</dd>
+            </div>`).join("")}
+        </dl>
+      </section>`;
   }
 
   function renderStudentJournal(student, entries = [], email = "") {
@@ -4404,7 +4602,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
 
     modalBodyEl.innerHTML = `
       <div class="mcal-journal">
-        <p class="mcal-journal__count">${entries.length} bitácoras registradas</p>
+        <p class="mcal-journal__count">${entries.length === 1 ? "1 bitácora registrada" : `${entries.length} bitácoras registradas`} · de la más reciente a la más antigua</p>
         ${entries.map((entry) => {
           const date = toDateSafe(entry.fechaClase || entry.date || entry.createdAt);
           const title = entry.title || entry.titulo || entry.topic || entry.tema || "Bitácora de clase";
@@ -4418,7 +4616,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
           return `
             <article class="mcal-journal__entry">
               <time>${escapeHTML(date ? date.toLocaleDateString("es-CO", {
-                day: "numeric", month: "long", year: "numeric",
+                weekday: "short", day: "numeric", month: "long", year: "numeric",
               }) : "Sin fecha")}</time>
               <h4>${escapeHTML(title)}</h4>
               <p class="mcal-journal__meta">${escapeHTML([teacher, process].filter(Boolean).join(" · "))}</p>
@@ -4429,7 +4627,9 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
   }
   modalEl.addEventListener("click", onModalClick);
 
-  if (isAdmin || isCleaningUser) setDisplayMode("rooms");
+  /* Coordinación abre en Salones; si la cuenta está en "Mis clases" (vista de
+     docente) se queda en el calendario, porque ahí no hay botón para volver. */
+  if (isCleaningUser || (isAdmin && !isTeacherView())) setDisplayMode("rooms");
 
   /* ------------------------ Destroy ------------------------- */
 

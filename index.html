@@ -466,6 +466,72 @@
       margin-top: 8px;
     }
 
+    /* Antes de entrar solo se ve la tarjeta de bienvenida: el panel lateral
+       y la barra de arriba no sirven sin sesión. */
+    .app:not(.is-authenticated) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .app:not(.is-authenticated) .sidebar,
+    .app:not(.is-authenticated) .topbar {
+      display: none;
+    }
+
+    .app:not(.is-authenticated) .calendar-shell {
+      display: grid;
+      align-content: center;
+      min-height: 100vh;
+      min-height: 100dvh;
+    }
+
+    .app:not(.is-authenticated) #modulo-reservas {
+      min-width: 0;
+      padding: 0 16px;
+    }
+
+    .setup__logo {
+      display: block;
+      width: 150px;
+      height: auto;
+      margin: 0 auto 20px;
+    }
+
+    .setup__google {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      min-height: 48px;
+      margin-top: 6px;
+      padding: 0 22px;
+      border: 1px solid #dadce0;
+      border-radius: 999px;
+      background: #fff;
+      color: #1f1f1f;
+      font: inherit;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(60, 64, 67, 0.15);
+      transition: box-shadow 0.15s ease, background 0.15s ease;
+    }
+
+    .setup__google:hover {
+      background: #f8f9fb;
+      box-shadow: 0 3px 10px rgba(60, 64, 67, 0.2);
+    }
+
+    .setup__google:focus-visible {
+      outline: 3px solid #b9a6f5;
+      outline-offset: 2px;
+    }
+
+    .setup--welcome .setup__hint {
+      margin: 22px 0 0;
+      color: #7a7590;
+      font-size: 13px;
+    }
+
     @media (max-width: 980px) {
       .app {
         grid-template-columns: 1fr;
@@ -568,7 +634,6 @@
                onerror="this.style.display='none'">
           <h1>Calendario</h1>
         </div>
-        <button class="icon-button" type="button" aria-label="Vista lateral">▣</button>
       </div>
 
       <section class="mini-month" aria-label="Mes actual">
@@ -580,50 +645,20 @@
         <div class="mini-grid" id="mini-calendar"></div>
       </section>
 
-      <section class="activity">
-        <h2>Actividad</h2>
-        <div class="activity-block">
-          <div class="activity-summary">
-            <span>Próxima sesión</span>
-            <span>⌃</span>
-          </div>
-          <div class="next-class" id="next-class">
-            <strong>Esperando reservas</strong>
-            Cuando lleguen reservas desde Wix, tu siguiente clase aparecerá aquí.
-          </div>
-        </div>
-        <div class="activity-block">
-          <div class="activity-summary"><span>Lista de espera de citas</span><span>⌄</span></div>
-        </div>
-        <div class="activity-block">
-          <div class="activity-summary"><span>Solicitudes de reserva</span><span>⌄</span></div>
-        </div>
-        <div class="activity-block">
-          <div class="activity-summary"><span>Listas de espera de clases</span><span>⌄</span></div>
-        </div>
-        <div class="activity-block">
-          <div class="activity-summary"><span>Actividad reciente</span><span>⌄</span></div>
-        </div>
-      </section>
     </aside>
 
     <main class="main">
       <header class="topbar">
         <div class="topbar__left">
-          <button class="today-button" type="button" id="go-today">Hoy</button>
-          <button class="icon-button" type="button" id="prev-range" aria-label="Anterior">‹</button>
-          <button class="icon-button" type="button" id="next-range" aria-label="Siguiente">›</button>
           <div class="period-title" id="period-title">Calendario de clases</div>
         </div>
 
         <div class="topbar__right">
-          <button class="icon-button" type="button" aria-label="Buscar">⌕</button>
-          <div class="select-like">Semanalmente <span>⌄</span></div>
           <div class="user-box">
             <span aria-hidden="true">@</span>
             <input id="user-email" type="email" value="" placeholder="Inicia sesión" readonly aria-label="Correo del usuario" />
           </div>
-          <button class="today-button" type="button" id="refresh-classes" hidden>↻ Actualizar clases</button>
+          <button class="today-button" type="button" id="refresh-classes" hidden>↻ Sincronizar Wix</button>
           <button class="today-button" type="button" id="open-tv" hidden>📺 Mostrar en TV</button>
           <button class="primary-button" type="button" id="auth-button">Entrar</button>
         </div>
@@ -712,10 +747,14 @@
     function showLoginMessage() {
       container.innerHTML = `
         <div class="setup setup--welcome">
-          <span class="setup__bloom" aria-hidden="true">✿</span>
-          <h2>Bienvenido a tu agenda</h2>
-          <p>Entra con tu correo de Musicala y verás tus clases de inmediato.</p>
-          <button class="primary-button" type="button" data-setup-login>Entrar con Google</button>
+          <img class="setup__logo" src="assets/musicala-logo.png" alt="Musicala">
+          <h2>Tu agenda de clases</h2>
+          <p>Entra con tu cuenta de Google de Musicala y verás tus clases de hoy, la semana y el mes.</p>
+          <button class="setup__google" type="button" data-setup-login>
+            <svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.9 6.1C12.5 13.6 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.7 6c4.5-4.2 6.9-10.3 6.9-17.7z"/><path fill="#FBBC05" d="M10.6 28.6A14.5 14.5 0 0 1 9.5 24c0-1.6.3-3.2.8-4.6l-7.9-6.1A24 24 0 0 0 0 24c0 3.9.9 7.5 2.7 10.7l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.7-6c-2.1 1.4-4.9 2.3-8.2 2.3-6.2 0-11.5-4.1-13.4-9.9l-7.9 6.1C6.6 42.6 14.6 48 24 48z"/></svg>
+            Entrar con Google
+          </button>
+          <p class="setup__hint">Usa el mismo correo con el que coordinación te registró. Si no ves tus clases, avísale a coordinación.</p>
         </div>`;
       const shortcut = container.querySelector("[data-setup-login]");
       if (shortcut) shortcut.addEventListener("click", () => authButton.click());
@@ -986,30 +1025,17 @@
     refreshClassesButton.addEventListener("click", async () => {
       if (!calendarModule?.syncFromWix) return;
       refreshClassesButton.disabled = true;
-      refreshClassesButton.textContent = "↻ Actualizando…";
+      refreshClassesButton.textContent = "↻ Sincronizando…";
       try {
         await calendarModule.syncFromWix();
       } finally {
         refreshClassesButton.disabled = false;
-        refreshClassesButton.textContent = "↻ Actualizar clases";
+        refreshClassesButton.textContent = "↻ Sincronizar Wix";
       }
     });
     openTvButton.addEventListener("click", () => {
       window.open("./tv-agenda.html", "_blank", "noopener,noreferrer");
     });
-    document.getElementById("go-today").addEventListener("click", () => {
-      const today = document.querySelector(".fc-today-button");
-      if (today) today.click();
-    });
-    document.getElementById("prev-range").addEventListener("click", () => {
-      const prev = document.querySelector(".fc-prev-button");
-      if (prev) prev.click();
-    });
-    document.getElementById("next-range").addEventListener("click", () => {
-      const next = document.querySelector(".fc-next-button");
-      if (next) next.click();
-    });
-
     buildMiniCalendar();
     initFirebase();
   </script>

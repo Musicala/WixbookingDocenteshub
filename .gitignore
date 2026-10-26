@@ -27,3 +27,6 @@ Thumbs.db
 # Temporales
 services.json
 *.log
+
+# Modo demo local (datos inventados, no se publica)
+.demo/
