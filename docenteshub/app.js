@@ -1,3 +1,7 @@
+function biblioCatalogLabel(value) {
+  const labels = { "por-evaluar": "Por evaluar", todos: "Sin nivel específico", inicial: "Inicial", basico: "Básico", intermedio: "Intermedio", avanzado: "Avanzado", tecnica: "Técnica", metodo: "Método", "material-apoyo": "Material de apoyo", planificacion: "Planificación", "lectura-musical": "Lectura musical", "armonia-y-acordes": "Armonía y acordes", "coordinacion-e-independencia": "Coordinación e independencia", "afinacion-y-oido": "Afinación y oído", "interpretacion-y-ensamble": "Interpretación y ensamble", "cuidado-corporal": "Cuidado corporal", "planeacion-docente": "Planeación docente", "expresion-visual": "Expresión visual", "expresion-corporal": "Expresión corporal", "hoja-de-calculo": "Hoja de cálculo", numeros: "Números", presentacion: "Presentación", pdf: "PDF" };
+  return labels[value] || String(value || "").replaceAll("-", " ").replace(/^./, c => c.toUpperCase());
+}
 import { openAvailability } from "./availability.js?v=2026-10-21.1";
 /* Musicala · Docentes Hub
    - Login con Google (Firebase Auth)
@@ -402,6 +406,7 @@ function bibliotecaSearchScore(recurso, query) {
     { text: recurso?.tipo, weight: 4 },
     { text: [recurso?.nivel, recurso?.categoria, recurso?.especialidad, recurso?.cancion?.artista, recurso?.cancion?.genero, recurso?.cancion?.tonalidad].filter(Boolean).join(" "), weight: 5 },
     { text: Array.isArray(recurso?.etiquetas) ? recurso.etiquetas.join(" ") : "", weight: 5 },
+    { text: [...(recurso?.objetivos || []), ...(recurso?.formatos || [])].join(" "), weight: 5 },
     { text: recurso?.descripcion, weight: 2 },
     { text: enlaces.flatMap((l) => [l?.titulo, l?.nombre, l?.tipo]).join(" "), weight: 3 },
     { text: enlaces.map((l) => l?.url).join(" "), weight: 1 }
@@ -7262,8 +7267,11 @@ function renderBiblioteca(body, visibles, access) {
         <option value="">Tipo: todos</option>
         ${tipos.map((t) => `<option value="${escapeHtml(t)}" ${BIBLIO_STATE.tipo === t ? "selected" : ""}>${escapeHtml(t)}</option>`).join("")}
       </select>
-        <select id="biblio-nivel" class="biblioSelect" aria-label="Dificultad"><option value="">Dificultad: todos</option>${[...new Set(visibles.map(r => r.nivel).filter(Boolean))].sort().map(v => `<option value="${escapeHtml(v)}" ${BIBLIO_STATE.nivel === v ? "selected" : ""}>${escapeHtml(v === "todos" ? "Todos los niveles (por verificar)" : v)}</option>`).join("")}</select>
-        <select id="biblio-categoria" class="biblioSelect" aria-label="Objetivo / categoría"><option value="">Objetivo / categoría: todos</option>${[...new Set(visibles.map(r => r.categoria).filter(Boolean))].sort().map(v => `<option value="${escapeHtml(v)}" ${BIBLIO_STATE.categoria === v ? "selected" : ""}>${escapeHtml(v === "todos" ? "Todos los niveles (por verificar)" : v)}</option>`).join("")}</select>
+        <select id="biblio-nivel" class="biblioSelect" aria-label="Dificultad"><option value="">Dificultad: todos</option>${[...new Set(visibles.map(r => r.nivel).filter(Boolean))].sort().map(v => `<option value="${escapeHtml(v)}" ${BIBLIO_STATE.nivel === v ? "selected" : ""}>${escapeHtml(biblioCatalogLabel(v))}</option>`).join("")}</select>
+        <select id="biblio-categoria" class="biblioSelect" aria-label="Categoría"><option value="">Categoría: todos</option>${[...new Set(visibles.map(r => r.categoria).filter(Boolean))].sort().map(v => `<option value="${escapeHtml(v)}" ${BIBLIO_STATE.categoria === v ? "selected" : ""}>${escapeHtml(biblioCatalogLabel(v))}</option>`).join("")}</select>
+        <select id="biblio-objetivo" class="biblioSelect" aria-label="Objetivo"><option value="">Objetivo: todos</option>${[...new Set(visibles.flatMap(r => r.objetivos || []))].sort().map(v => `<option value="${escapeHtml(v)}" ${BIBLIO_STATE.objetivo === v ? "selected" : ""}>${escapeHtml(biblioCatalogLabel(v))}</option>`).join("")}</select>
+        <select id="biblio-formato" class="biblioSelect" aria-label="Formato"><option value="">Formato: todos</option>${[...new Set(visibles.flatMap(r => r.formatos || []))].sort().map(v => `<option value="${escapeHtml(v)}" ${BIBLIO_STATE.formato === v ? "selected" : ""}>${escapeHtml(biblioCatalogLabel(v))}</option>`).join("")}</select>
+        <button type="button" class="btnGhost" id="biblio-global">Buscar en toda mi biblioteca</button>
     </div>
     <nav class="biblioCrumbs" id="biblioCrumbs"></nav>
     <p class="biblioMeta">${accessLabel}</p>
@@ -7329,7 +7337,7 @@ function renderBiblioteca(body, visibles, access) {
   };
 
   const paintRecursos = (lista, grid, moreWrap) => {
-    const filtered = lista.filter(r => (!BIBLIO_STATE.tipo || String(r.tipo || r.type || "").trim() === BIBLIO_STATE.tipo) && (!BIBLIO_STATE.nivel || r.nivel === BIBLIO_STATE.nivel) && (!BIBLIO_STATE.categoria || r.categoria === BIBLIO_STATE.categoria));
+    const filtered = lista.filter(r => (!BIBLIO_STATE.tipo || String(r.tipo || r.type || "").trim() === BIBLIO_STATE.tipo) && (!BIBLIO_STATE.nivel || r.nivel === BIBLIO_STATE.nivel) && (!BIBLIO_STATE.categoria || r.categoria === BIBLIO_STATE.categoria) && (!BIBLIO_STATE.objetivo || (r.objetivos || []).includes(BIBLIO_STATE.objetivo)) && (!BIBLIO_STATE.formato || (r.formatos || []).includes(BIBLIO_STATE.formato)));
     if (!filtered.length) {
       grid.innerHTML = `<div class="biblioEmpty"><h2>Sin resultados</h2><p>Prueba con otra búsqueda o quita los filtros.</p></div>`;
       if (moreWrap) moreWrap.hidden = true;
@@ -7357,7 +7365,7 @@ function renderBiblioteca(body, visibles, access) {
     }
 
     const term = normalizeText(BIBLIO_STATE.search);
-    if (term || BIBLIO_STATE.nivel || BIBLIO_STATE.categoria || BIBLIO_STATE.tipo) {
+    if (term || BIBLIO_STATE.nivel || BIBLIO_STATE.categoria || BIBLIO_STATE.tipo || BIBLIO_STATE.objetivo || BIBLIO_STATE.formato) {
       // Búsqueda acotada a la carpeta actual: si estás dentro de un arte/área/tema,
       // solo busca ahí. En "Inicio" busca en toda la biblioteca visible.
       let source = visibles;
@@ -7441,6 +7449,9 @@ function renderBiblioteca(body, visibles, access) {
     BIBLIO_STATE.shown = 60;
     paint();
   });
+  $("#biblio-objetivo", body)?.addEventListener("change", e => { BIBLIO_STATE.objetivo = e.target.value; BIBLIO_STATE.shown = 60; paint(); });
+  $("#biblio-formato", body)?.addEventListener("change", e => { BIBLIO_STATE.formato = e.target.value; BIBLIO_STATE.shown = 60; paint(); });
+  $("#biblio-global", body)?.addEventListener("click", () => { BIBLIO_STATE.navArte = null; BIBLIO_STATE.navArea = null; BIBLIO_STATE.navTema = null; BIBLIO_STATE.shown = 60; paint(); });
   $("#biblio-nivel", body)?.addEventListener("change", e => { BIBLIO_STATE.nivel = e.target.value; BIBLIO_STATE.shown = 60; paint(); });
   $("#biblio-categoria", body)?.addEventListener("change", e => { BIBLIO_STATE.categoria = e.target.value; BIBLIO_STATE.shown = 60; paint(); });
   $("#biblioTipo", body)?.addEventListener("change", (e) => {
@@ -7498,6 +7509,7 @@ function renderRecursoCard(recurso) {
       <div class="biblioCardTop">
         <span class="biblioArea">${biblioAreaEmoji(recurso.area)} ${escapeHtml(recurso.area || "general")}</span>
         ${recurso.tipo ? `<span class="biblioTipo">${escapeHtml(recurso.tipo)}</span>` : ""}
+        ${recurso.nivel ? `<span class="biblioTipo">${escapeHtml(biblioCatalogLabel(recurso.nivel))}</span>` : ""}
       </div>
       <h3 class="biblioTitle">${escapeHtml(recurso.titulo || "Sin título")}</h3>
       ${recurso.tema ? `<p class="biblioTema">📂 ${escapeHtml(recurso.tema)}</p>` : ""}
