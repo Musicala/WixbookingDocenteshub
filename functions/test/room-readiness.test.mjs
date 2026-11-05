@@ -1,0 +1,6 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {roomReadinessAlerts} from '../../js/room-readiness.js';
+const now=Date.parse('2026-10-31T14:00:00Z');
+const event=(id,minutes=30,room=null)=>({id,start:new Date(now+minutes*60000),end:new Date(now+(minutes+60)*60000),extendedProps:{groupKey:id,status:'confirmed',roomAssignment:room}});
+test('Alerts missing rooms only for classes in progress or within one hour',()=>{const result=roomReadinessAlerts([event('a'),event('b',120),event('c',-90)],now);assert.equal(result.length,1);assert.equal(result[0].kind,'missing-room');assert.ok(result[0].message.includes('30 min'));});
+test('Detects real room overlap without treating group participants or home lessons as conflicts',()=>{const room={roomName:'Salón 1',roomIndex:0};assert.equal(roomReadinessAlerts([event('a',30,room),event('b',40,room)],now).length,2);const same=event('a',35,room);assert.equal(roomReadinessAlerts([event('a',30,room),same],now).length,0);const home={roomName:'Ubicación del estudiante',roomIndex:10};assert.equal(roomReadinessAlerts([event('a',30,home),event('b',30,home)],now).length,0);});
+test('Cancelled classes never generate alarms',()=>{const e=event('a');e.extendedProps.status='cancelled';assert.equal(roomReadinessAlerts([e],now).length,0);});

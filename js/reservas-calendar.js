@@ -1,3 +1,4 @@
+import { roomReadinessAlerts } from './room-readiness.js';
 import { availabilityOccurrences } from "./availability-events.js";
 /* ============================================================
    Reservas Wix · Calendario — Hub Docentes Musicala
@@ -1458,6 +1459,11 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     return events;
   }
 
+  function renderRoomReadiness(events) {
+    const readiness = roomReadinessAlerts(events);
+    return readiness.length ? `<div class="mcal-rooms__planning-alerts" role="status" aria-live="polite"><strong>⚠ Clases próximas que necesitan revisión</strong><ul>${readiness.map(({event,message})=>`<li>${escapeHTML(formatTime(new Date(event.start)))} · ${escapeHTML(event.extendedProps?.serviceName || 'Clase')} · ${escapeHTML(event.extendedProps?.staffName || '')}: ${escapeHTML(message)}</li>`).join('')}</ul></div>` : '';
+  }
+
   function renderRoomsView() {
     if (!roomsEl) return;
     const events = buildRoomsEvents();
@@ -1469,6 +1475,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
     const unassignedEvents = dayEvents.filter((event) => !event.extendedProps?.roomAssignment);
     const filteredEvents = filterRoomEvents(dayEvents);
     const cleaningEvents = buildCleaningEvents(day, assignedEvents);
+    const readinessHtml = renderRoomReadiness(dayEvents);
     const planningAlerts = dayEvents.flatMap(event => (event.extendedProps?.roomPlanningIssues || []).map(message => ({ event, message })));
     const planningAlertsHtml = planningAlerts.length ? `<div class="mcal-rooms__planning-alerts" role="status" aria-live="polite"><strong>⚠ Avisos de organización</strong><ul>${planningAlerts.map(({ event, message }) => `<li>${escapeHTML(formatTime(new Date(event.start)))} · ${escapeHTML(event.extendedProps?.serviceName || 'Clase')} · ${escapeHTML(event.extendedProps?.staffName || '')}: ${escapeHTML(message)}</li>`).join('')}</ul></div>` : '';
 
@@ -1519,6 +1526,7 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
         <h3>${roomsHeading}</h3>
         <p>${roomsDescription}</p>
       </div>
+      <div data-room-readiness>${readinessHtml}</div>
       ${planningAlertsHtml}
       ${!isCleaningView && !unassignedEvents.length && dayEvents.length ? `<p class="mcal-rooms__all-set">✓ Todas las clases del día tienen salón.</p>` : ""}
       <div class="mcal-rooms-layout${isCleaningView || !unassignedEvents.length ? " mcal-rooms-layout--cleaning" : ""}">
@@ -4634,9 +4642,20 @@ export function initReservasCalendar({ container, db, userEmail, loadStudentHubD
 
   /* ------------------------ Destroy ------------------------- */
 
+  const roomAlertTimer = window.setInterval(() => {
+    if (state.destroyed || document.visibilityState === 'hidden') return;
+    const panel = roomsEl?.querySelector('[data-room-readiness]');
+    if (!panel) return;
+    const events = buildRoomsEvents();
+    const day = getRoomsSelectedDay(events);
+    const html = renderRoomReadiness(events.filter(event => sameLocalDate(new Date(event.start), day)));
+    if (panel.innerHTML !== html) panel.innerHTML = html;
+  }, 60000);
+
   function destroy() {
     if (state.destroyed) return;
     state.destroyed = true;
+    window.clearInterval(roomAlertTimer);
     if (state.unsubscribe) {
       state.unsubscribe();
       state.unsubscribe = null;
