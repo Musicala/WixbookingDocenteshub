@@ -621,6 +621,10 @@ async function findSupersededBookings(db, booking) {
     if (normalizeStatus(data.status) === "cancelled") return false;
     if (booking.serviceName && cleanText(data.serviceName) !== booking.serviceName) return false;
     if (booking.customerEmail && normalizeEmail(data.customerEmail) !== booking.customerEmail) return false;
+    /* Sin correo en el evento: tiene que ser el mismo estudiante por nombre.
+       Sin correo ni nombre no se retira nada: en una clase grupal varias
+       reservas comparten servicio y hora. */
+    if (!booking.customerEmail && !mismoEstudiante(data, booking)) return false;
     /* No comparar el docente: este método se invoca justamente cuando Wix
        reemplaza una reserva por otra (mismo estudiante/servicio/horario), y
        en una reasignación de docente el correo de la reserva anterior debe
@@ -693,10 +697,50 @@ async function findDuplicateSlotBookings(db, booking) {
     const d = doc.data();
     if (normalizeStatus(d.status) === "cancelled") return false;
     if (slotMinute(d.startDate) !== slotMinute(booking.startDate)) return false;
-    if (identity && groupIdentity(d) === identity) return true;
+    /* Con identidad (correo o nombre del estudiante), SOLO esa identidad:
+       en una clase grupal (Ensamble, Musicalitos…) varios estudiantes
+       comparten servicio y hora, y una actualización de uno cancelaba a los
+       demás (caso Andrés Alonso, 5 nov 2026: la actualización de Andrés
+       Camilo Gutiérrez marcó como cancelada su reserva de Ensamble). */
+    if (identity) return groupIdentity(d) === identity;
+    /* Sin identidad, el respaldo por servicio y franja solo vale para clases
+       individuales: en una grupal no hay forma segura de saber cuál era. */
+    if (/^class$/i.test(cleanText(booking.serviceType))) return false;
     return isExplicitUpdate && cleanText(d.serviceName) === booking.serviceName;
   });
 }
+
+/* ¿Las dos reservas son del MISMO estudiante? Por correo (cualquiera de los
+   suyos) o, si alguna no trae correo, por el nombre. Sin datos para saberlo,
+   NO: retirar la reserva de otra persona es mucho peor que dejar un
+   duplicado (caso Andrés Alonso, 5 nov 2026). */
+function mismoEstudiante(a = {}, b = {}) {
+  const ea = uniqueEmails([a.studentEmails, a.customerEmails, a.customerEmail]);
+  const eb = uniqueEmails([b.studentEmails, b.customerEmails, b.customerEmail]);
+  if (ea.length && eb.length) return ea.some((e) => eb.includes(e));
+  const na = cleanText(a.customerName).toLowerCase();
+  const nb = cleanText(b.customerName).toLowerCase();
+  return Boolean(na && nb && na === nb);
+}
+
+/* Última barrera antes de marcar algo como reemplazado: solo reservas del
+   mismo estudiante, salvo que el nuevo evento no traiga ninguna identidad y
+   la clase sea individual. */
+function soloDelMismoEstudiante(docs = [], booking = {}) {
+  const sinIdentidad = !groupIdentity(booking);
+  return docs.filter((doc) => {
+    const d = doc.data();
+    if (mismoEstudiante(d, booking)) return true;
+    if (sinIdentidad && !/^class$/i.test(cleanText(booking.serviceType))) return true;
+    console.warn("wixBookingWebhook supersede bloqueado: otro estudiante", {
+      bookingId: booking.bookingId, bloqueado: doc.id,
+      nuevo: cleanText(booking.customerName), bloqueadoNombre: cleanText(d.customerName),
+    });
+    return false;
+  });
+}
+
+if (process.env.HUB_TEST === "1") module.exports.__test = { mismoEstudiante, soloDelMismoEstudiante, groupIdentity, findDuplicateSlotBookings };
 
 /* ==================== Cloud Function ======================= */
 
@@ -951,7 +995,7 @@ exports.wixBookingWebhook = onRequest(
         (booking.status === "updated" || booking.status === "rescheduled") &&
         booking.previousStartDate
       ) {
-        const superseded = await findSupersededBookings(db, booking);
+        const superseded = soloDelMismoEstudiante(await findSupersededBookings(db, booking), booking);
         if (superseded.length) {
           const batch = db.batch();
           superseded.forEach((doc) => {
@@ -977,7 +1021,7 @@ exports.wixBookingWebhook = onRequest(
          nuevo y misma fecha): retirar las versiones anteriores para que no se
          vean dos clases en el mismo espacio. */
       if (!isCancellation) {
-        const duplicates = await findDuplicateSlotBookings(db, booking);
+        const duplicates = soloDelMismoEstudiante(await findDuplicateSlotBookings(db, booking), booking);
         if (duplicates.length) {
           const batch = db.batch();
           duplicates.forEach((doc) => {
